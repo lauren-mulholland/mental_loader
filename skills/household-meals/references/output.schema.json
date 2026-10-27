@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["owner", "status", "meals", "questions", "requires_acceptance"],
+  "properties": {
+    "owner": {"const": "meals"},
+    "status": {"enum": ["proposal", "needs_clarification"]},
+    "requires_acceptance": {"const": true},
+    "questions": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+    "meals": {
+      "type": "array", "maxItems": 7,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "servings", "ingredients"],
+        "properties": {
+          "id": {"type": "string"}, "name": {"type": "string"},
+          "servings": {"type": "integer", "minimum": 1},
+          "ingredients": {
+            "type": "array", "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["item", "amount", "unit"],
+              "properties": {
+                "item": {"type": "string"},
+                "amount": {"type": "number", "exclusiveMinimum": 0},
+                "unit": {"type": "string"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

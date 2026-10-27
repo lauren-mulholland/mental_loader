@@ -1,0 +1,29 @@
+{
+  "type": "object", "additionalProperties": false,
+  "required": ["owner", "mode", "observations", "grocery_proposal", "questions"],
+  "properties": {
+    "owner": {"const": "supplies"},
+    "mode": {"enum": ["stock_assessment", "grocery_proposal", "needs_clarification"]},
+    "questions": {"type": "array", "items": {"type": "string"}, "maxItems": 5},
+    "observations": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["item", "availability", "source"],
+      "properties": {
+        "item": {"type": "string"},
+        "availability": {"enum": ["confirmed_available", "confirmed_missing", "unknown"]},
+        "source": {"type": "string"}
+      }
+    }},
+    "grocery_proposal": {"type": "array", "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["item", "amount", "unit", "meal_ids", "stock_uncertain"],
+      "properties": {
+        "item": {"type": "string"},
+        "amount": {"type": "number", "exclusiveMinimum": 0},
+        "unit": {"type": "string"},
+        "meal_ids": {"type": "array", "items": {"type": "string"}},
+        "stock_uncertain": {"type": "boolean"}
+      }
+    }}
+  }
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#245c50">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Mental Loader</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <div id="login-screen" class="login-wrap">
+    <form id="login-form" class="login-card">
+      <div class="brand-mark" aria-hidden="true">m.</div>
+      <p class="eyebrow">A little less to carry</p>
+      <h1>Your household,<br>a little lighter.</h1>
+      <p>A quiet place for the things you’re keeping in your head.</p>
+      <label for="access-code">Local household access code</label>
+      <input id="access-code" type="password" autocomplete="current-password" required minlength="32">
+      <button type="submit">Open my household <span aria-hidden="true">↗</span></button>
+      <p class="fine">Technical feasibility · Access codes are in your local .local/access-codes.json file.</p>
+    </form>
+  </div>
+
+  <div id="workspace" class="workspace" hidden>
+    <aside class="sidebar">
+      <a class="wordmark" href="/">m. <span>mental loader</span></a>
+      <p class="eyebrow">Your space</p>
+      <h2 id="household-name">Household</h2>
+      <p class="sidebar-note">Make room for everything else.</p>
+      <div class="section-label"><span>Conversations</span><button id="new-chat" class="quiet" aria-label="New conversation">+</button></div>
+      <nav id="conversations" aria-label="Saved conversations"></nav>
+      <div class="sidebar-bottom">
+        <span class="pill">Phase 1 · Local prototype</span>
+        <button id="logout" class="quiet">Sign out</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="page-header">
+        <div><p class="eyebrow">One thing at a time</p><h1>A little headspace.</h1></div>
+        <span id="ai-badge" class="pill">AI off · No model spend</span>
+      </header>
+      <div class="main-grid">
+        <section class="chat-panel" aria-labelledby="chat-heading">
+          <div class="panel-heading"><div><span class="status-dot"></span><h2 id="chat-heading">Household chat</h2></div><span class="muted">Saved automatically</span></div>
+          <div id="messages" class="messages" role="log" aria-live="polite"></div>
+          <p id="run-status" class="run-status" role="status"></p>
+          <div class="suggestion-row">
+            <button id="try-reminder" class="chip">＋ Try a 1-minute reminder</button>
+            <button id="try-ideas" class="chip">✧ Explore gift ideas</button>
+          </div>
+          <form id="message-form" class="composer">
+            <label for="message-input" class="sr-only">Message</label>
+            <textarea id="message-input" rows="2" maxlength="2000" placeholder="Try /remind 1m Buy a birthday card" required></textarea>
+            <button type="submit" id="send" aria-label="Send message" disabled>↑</button>
+          </form>
+          <p class="fine composer-note">/remind works in code without credits. Natural chat uses Hermes when enabled.</p>
+        </section>
+
+        <aside class="right-column">
+          <section class="task-panel" aria-labelledby="upcoming-heading">
+            <div class="panel-heading"><h2 id="upcoming-heading">On your horizon</h2><span id="task-count" class="count">0</span></div>
+            <p class="muted">Small next steps, all in one place.</p>
+            <div id="tasks"></div>
+          </section>
+          <section class="notification-card">
+            <span class="notification-symbol" aria-hidden="true">↗</span>
+            <h2>A nudge when you need it.</h2>
+            <p>Let reminders find you, even when this page is closed.</p>
+            <button id="notifications" class="secondary">Enable notifications</button>
+            <p id="push-status" class="fine"></p>
+            <p class="fine">On iPhone: add to Home Screen, open the app there, then enable notifications. Keep the local backend and Hermes gateway running on your awake laptop.</p>
+          </section>
+          <p class="fine">Google Calendar connection is a separate feasibility check. No calendar events are synced yet.</p>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <div id="notice" role="alert" hidden></div>
+</body>
+</html>

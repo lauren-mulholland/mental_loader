@@ -1,0 +1,4 @@
+name: mental-loader
+version: 0.1.0
+description: Deterministic household tools for a locally running Mental Loader backend.
+author: Mental Loader

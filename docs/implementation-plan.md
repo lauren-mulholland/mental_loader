@@ -1,0 +1,87 @@
+# Implementation plan
+
+Agreed baseline: 26 October 2026; status updated 27 October 2026. Build the smallest useful household workflow first, learn from real use, and preserve boundaries that permit a later agent-framework change. For the current working state and ordered next actions, start with [development handoff](handoff.md#next-steps-in-order).
+
+## Phase 1 — Technical feasibility
+
+Build and test the responsive local app, saved history, deterministic reminder functions, native Hermes plugin, Hermes API adapter, native memory, skills/session-recall availability, native no-agent scheduling, Google Calendar read probe and Web Push path. Hermes should own runtime services rather than act only as a model endpoint.
+
+Current evidence is recorded in [feasibility.md](feasibility.md). Automated code tests, desktop/mobile browser checks, native Hermes plugin execution, memory persistence across store reloads, direct no-agent execution and actual gateway-driven scheduled dispatch have passed. The user configured OpenRouter and received two live chat responses, then encountered an encrypted-history rejection on the third message. A targeted recovery patch passed offline checks; live confirmation after restart remains pending. Conversational memory/recall, specialist execution, learned skill creation, interrupted-run recovery, Google authorisation and iPhone lock-screen push remain open. Phase 1 is not complete.
+
+Immediate priorities are to confirm the recovery in the affected chat, reduce frontend polling to an adaptive active/idle cadence, then validate tool use, cross-session memory and one small specialist handoff. See the [handoff](handoff.md) for acceptance checks and current limitations. The polling change is planned, not implemented.
+
+Exit criteria:
+
+- A user can sign in on a laptop, send a request, reload, and see saved history.
+- Hermes actually selects and executes a household tool with a configured live provider.
+- A deterministic reminder is stored and processed without inference.
+- Hermes' memory tool persists a preference across a fresh store/session, with no leakage to a separate home; verify conversational recall with a live provider.
+- Native cron invokes the reminder action without inference; test actual recurring cadence and stop/restart behaviour after the gateway is running.
+- A notification reaches an actual phone with the app closed and opens the correct chat.
+- Google read access is demonstrated without writing events.
+- AnyList feasibility is classified honestly as supported, blocked or requiring an alternative.
+- Costs and runtime limitations are recorded; model mocks are labelled as mocks.
+
+## Phase 2 — Foundations for sharing
+
+Introduce individual identities, households, owner/member roles, conversation participants,
+versioned database migrations, stronger isolation controls and account-scoped integrations.
+Validate separate Hermes contexts and credentials before connecting additional households.
+Add safe job claiming, rate limits, secrets handling and usage accounting as needed for hosting.
+
+Exit criteria: two real test accounts cannot access each other's private records, model
+context, tools or notifications, including through background jobs and guessed resource IDs.
+Do not invite friends based only on the access-code spike's isolation tests.
+
+## Phase 3 — Birthday and gift workflow
+
+Support gift recipients, preferences, budgets, occasion dates, preparation lead times and
+purchase/completion status. Import relevant Google events and handle updates/cancellations.
+Use a specialist for suggestions; keep deadline calculation and integration/delivery functions in code while Hermes owns scheduled execution. Use native memory for gift interests and preferences and skills for repeatable preparation procedures.
+
+Exit criteria: one birthday is handled from discovery to completed preparation, without
+duplicate tasks or reminders continuing after the relevant work is finished.
+
+## Phase 4 — Personal pilot
+
+Use the assistant for roughly two weeks. Add notification preferences, quiet hours, digest
+grouping and snooze based on observed needs. Test short follow-ups and corrections.
+
+Record missed reminders, unwanted reminders, incorrect assumptions, corrections, task
+completion and per-workflow model usage. The useful outcome is less effort for the user,
+not a high count of agent runs or notifications.
+
+## Phase 5 — Hosted friends pilot
+
+Deploy on a PaaS, initially considering Railway. Package the app and Hermes runtime for repeatable deployment with PostgreSQL, persistent Hermes homes, HTTPS, backups, restore instructions and basic monitoring. Native memory, skills and cron state must survive redeployments alongside application data.
+Complete the account and isolation work before inviting a few households.
+
+Exit criteria: the service works with the developer's laptop off; backup restoration has
+been demonstrated; failures are visible; household budgets and permissions are enforced;
+a friend can onboard into an isolated household.
+
+## Phase 6 — Expand one capability at a time
+
+1. Meals/groceries: preferences, staple-versus-stock records, shopping routine, a small meal
+   plan and accepted grocery updates. Test through a real shopping cycle.
+2. Appointments/supplies: household members, supplied dates, preparation and booking
+   follow-ups, replenishment reminders and changes/cancellations.
+3. Home tasks: recurring chores, maintenance, seasonal work and explicit ownership.
+
+## Verification strategy
+
+Use ordinary automated tests for dates, offsets/daylight saving, state transitions,
+idempotency, tenant isolation, retry handling and integration contracts. Use a controllable
+clock instead of waiting through real calendar periods.
+
+Evaluate agent behaviour separately: tool choice, handling ambiguity, factual grounding,
+following corrections, appropriate delegation and truthful reports of completed actions.
+Inspect real traces and costs; do not treat string assertions on a fake answer as live-agent
+quality evidence. Include restart and uncertain-execution tests to avoid duplicate actions.
+
+## Future runtime migration
+
+There is no fixed deadline to replace Hermes. Consider an SDK-based agent if evidence shows
+that required workflow control, multi-tenant isolation, observability or lifecycle management
+is disproportionately difficult in Hermes. Keep domain functions and integration contracts
+reusable, but expect to adapt agent definitions, tools, sessions and delegation.

@@ -1,0 +1,50 @@
+--- a/agent/turn_recovery.py
++++ b/agent/turn_recovery.py
+@@ -451,6 +451,36 @@
+     return False
+ 
+ 
++def _recover_openrouter_encrypted_reasoning(agent, retry, messages, api_messages):
++    """Repair a rejected OpenAI replay carrier on OpenRouter, once per API iteration."""
++    if (agent.api_mode != "chat_completions" or agent.provider != "openrouter"
++            or not agent.model.lower().startswith("openai/")
++            or retry.invalid_encrypted_content_retry_attempted):
++        return False
++    removed = 0
++    for history in (messages, api_messages):
++        for message in history if isinstance(history, list) else []:
++            if not isinstance(message, dict) or message.get("role") != "assistant":
++                continue
++            details = message.get("reasoning_details")
++            if not isinstance(details, list):
++                continue
++            kept = [detail for detail in details if not (
++                isinstance(detail, dict) and detail.get("type") == "reasoning.encrypted")]
++            removed += len(details) - len(kept)
++            if kept:
++                message["reasoning_details"] = kept
++            else:
++                message.pop("reasoning_details", None)
++    if not removed:
++        return False
++    retry.invalid_encrypted_content_retry_attempted = True
++    logger.warning("%sRejected OpenRouter encrypted reasoning: removed %d replay carriers; "
++                   "retrying once with visible messages and tool history intact",
++                   agent.log_prefix, removed)
++    return True
++
++
+ def _recover_format_errors(
+     agent: Any, api_error: Exception, classified: Any, _retry: TurnRetryState,
+     messages: list[dict[str, Any]], api_messages: Any,
+@@ -482,6 +512,10 @@
+             "(canonical messages unchanged)",
+             agent.log_prefix, detail, removed,
+         )
++        return True
++
++    if (classified.reason == FailoverReason.invalid_encrypted_content
++            and _recover_openrouter_encrypted_reasoning(agent, _retry, messages, api_messages)):
+         return True
+ 
+     # 400 ``invalid_encrypted_content`` on a stale ``codex_reasoning_items`` blob (the 401
