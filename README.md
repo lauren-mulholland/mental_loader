@@ -8,7 +8,7 @@ This is a local technical-feasibility spike, not a publicly deployable multi-use
 
 ## Product and design documentation
 
-Continuing in a fresh conversation? Start with the [development handoff](docs/handoff.md) for the current implementation, verified results, unresolved incident and ordered next steps (updated 27 October 2026).
+Continuing in a fresh conversation? Start with the [development handoff](docs/handoff.md) for the current implementation, verified results, unresolved incident and next steps (updated 25 November 2026).
 
 | Document | What it covers |
 | --- | --- |
@@ -30,7 +30,7 @@ The requirements describe the intended product. The feasibility report describes
 - Recurring home tasks and maintenance as the product grows.
 - Saved chat, upcoming tasks and proactive notifications with useful next actions.
 
-The tenancy boundary is a **household**, with individual accounts and memberships planned before a friends pilot. The local spike uses household access codes and tests two households; only the personal household is connected to a dedicated Hermes runtime.
+The tenancy boundary is a **household**. [Phase 2 sharing foundations](docs/phase-2-accounts.md) are implemented: personal identities and recovery, roles, private conversation participants, migrations, encrypted account-scoped calendar access, isolated runtime containers, safe background jobs, notification controls and backup/restore. Existing chats stay household-shared; private AI requires its own registered runtime. The original personal setup remains unchanged. Phase 1 live checks and phase 5 hosted-pilot readiness remain open; next feature work is birthdays and gifts.
 
 ## Run locally
 

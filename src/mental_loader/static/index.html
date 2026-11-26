@@ -14,16 +14,29 @@
 </head>
 <body>
   <div id="login-screen" class="login-wrap">
-    <form id="login-form" class="login-card">
+    <div class="login-card"><form id="login-form">
       <div class="brand-mark" aria-hidden="true">m.</div>
       <p class="eyebrow">A little less to carry</p>
       <h1>Your household,<br>a little lighter.</h1>
       <p>A quiet place for the things you’re keeping in your head.</p>
-      <label for="access-code">Local household access code</label>
+      <label for="access-code">Personal or local household access code</label>
       <input id="access-code" type="password" autocomplete="current-password" required minlength="32">
+      <label id="household-select-label" for="household-select" hidden>Choose your household</label>
+      <select id="household-select" hidden></select>
       <button type="submit">Open my household <span aria-hidden="true">↗</span></button>
-      <p class="fine">Technical feasibility · Access codes are in your local .local/access-codes.json file.</p>
+      <p class="fine">Use your personal code if your household has accounts. Otherwise, use the code in your local .local/access-codes.json file.</p>
     </form>
+    <details class="recovery-panel"><summary>Recover your personal account</summary>
+      <form id="recovery-form">
+        <label for="recovery-code">Offline recovery code</label>
+        <input id="recovery-code" type="password" autocomplete="off" minlength="32" required>
+        <button type="submit">Recover account</button>
+      </form>
+    </details>
+    <div id="credential-result" hidden>
+      <p class="fine">Save both codes now. Your previous sign-in code and sessions have been revoked. Keep the recovery code somewhere private and separate.</p>
+      <textarea id="new-credentials" readonly rows="6" spellcheck="false" autocomplete="off" aria-label="New account credentials"></textarea>
+    </div></div>
   </div>
 
   <div id="workspace" class="workspace" hidden>
@@ -33,9 +46,10 @@
       <h2 id="household-name">Household</h2>
       <p class="sidebar-note">Make room for everything else.</p>
       <div class="section-label"><span>Conversations</span><button id="new-chat" class="quiet" aria-label="New conversation">+</button></div>
+      <button id="new-private-chat" class="quiet" disabled>＋ New private chat</button>
       <nav id="conversations" aria-label="Saved conversations"></nav>
       <div class="sidebar-bottom">
-        <span class="pill">Phase 1 · Local prototype</span>
+        <span class="pill">Local prototype</span>
         <button id="logout" class="quiet">Sign out</button>
       </div>
     </aside>
@@ -47,7 +61,17 @@
       </header>
       <div class="main-grid">
         <section class="chat-panel" aria-labelledby="chat-heading">
-          <div class="panel-heading"><div><span class="status-dot"></span><h2 id="chat-heading">Household chat</h2></div><span class="muted">Saved automatically</span></div>
+          <div class="panel-heading"><div><span class="status-dot"></span><h2 id="chat-heading">Household chat</h2></div><span id="chat-visibility" class="muted">Shared with your household</span></div>
+          <details id="participants-panel" hidden>
+            <summary>Manage participants</summary>
+            <p class="fine">Adding someone gives them access to this chat’s saved messages and reminders.</p>
+            <ul id="participants-list"></ul>
+            <form id="participant-form">
+              <label for="participant-select">Add a household member</label>
+              <select id="participant-select"></select>
+              <button type="submit" id="add-participant">Add to chat</button>
+            </form>
+          </details>
           <div id="messages" class="messages" role="log" aria-live="polite"></div>
           <p id="run-status" class="run-status" role="status"></p>
           <div class="suggestion-row">
@@ -59,7 +83,7 @@
             <textarea id="message-input" rows="2" maxlength="2000" placeholder="Try /remind 1m Buy a birthday card" required></textarea>
             <button type="submit" id="send" aria-label="Send message" disabled>↑</button>
           </form>
-          <p class="fine composer-note">/remind works in code without credits. Natural chat uses Hermes when enabled.</p>
+          <p id="chat-guidance" class="fine composer-note">/remind works in code without credits. Natural chat uses Hermes when enabled.</p>
         </section>
 
         <aside class="right-column">
@@ -75,6 +99,21 @@
             <button id="notifications" class="secondary">Enable notifications</button>
             <p id="push-status" class="fine"></p>
             <p class="fine">On iPhone: add to Home Screen, open the app there, then enable notifications. Keep the local backend and Hermes gateway running on your awake laptop.</p>
+          </section>
+          <section id="account-panel" class="task-panel" hidden>
+            <h2>Your account</h2>
+            <p id="calendar-status" class="fine">Calendar not connected.</p>
+            <button id="connect-calendar" class="secondary">Connect Google Calendar</button>
+            <button id="disconnect-calendar" class="quiet" hidden>Disconnect calendar</button>
+            <button id="read-calendar" class="quiet" hidden>Show upcoming events</button>
+            <ul id="calendar-events"></ul>
+            <details><summary>Replace sign-in and recovery codes</summary>
+              <form id="rotate-form">
+                <label for="current-code">Current personal code</label>
+                <input id="current-code" type="password" autocomplete="current-password" minlength="32" required>
+                <button type="submit" class="secondary">Replace codes and sign out</button>
+              </form>
+            </details>
           </section>
           <p class="fine">Google Calendar connection is a separate feasibility check. No calendar events are synced yet.</p>
         </aside>

@@ -1,6 +1,8 @@
 # Phase 1: technical feasibility
 
-Status updated 27 October 2026. Phase 1 remains in progress. Read [development handoff](handoff.md) for the current incident, operational state and ordered next actions.
+Phase 1 evidence last updated 27 October 2026; sharing-foundation note updated 25 November 2026. Phase 1 remains in progress. Read [development handoff](handoff.md) for the current incident, operational state and ordered next actions.
+
+Phase 2 sharing foundations are now implemented and separately verified in the worktree; see the [phase 2 acceptance matrix](phase-2-accounts.md). The existing personal instance has not been migrated. Phase 2 acceptance does not close the live-provider, phone-push or Google-consent evidence gaps below.
 
 ## Current decision
 
@@ -23,7 +25,7 @@ household's runtime. Session IDs and prompt instructions alone are not security 
 | Can Hermes call deterministic household code? | Native plugin registered by the actual Hermes plugin manager; clock, save reminder, duplicate retry and list tasks exercised against local PostgreSQL | Model selecting the correct tools in natural conversation |
 | Can code run without models? | `/remind` saves tasks without inference; the running native Hermes scheduler processed a due reminder after about 60 seconds without manual dispatch | Recovery of work interrupted during gateway restart |
 | Are native memory and skills used? | Native memory tool persisted a synthetic preference across store reloads; a second home did not see it. Memory, session search and skills toolsets are enabled; meals/supplies/orchestrator skill drafts and output contracts installed | Live conversational memory/recall, specialist execution and learned skill creation |
-| Are household records separated? | Tests for conversations, tasks, tool credentials and runtime routing | User accounts, membership roles, invitations, DB row policies and deployment review |
+| Are household records separated? | Phase 2 adds identities/roles, private participants, account integrations, ancestry controls, scoped runtime containers, device/session notifications and adversarial tests | Hosted invitations/deployment review; see phase 2 for current implementation rather than the old shared-code shortcut |
 | Can reminders notify outside the app? | Web Push transport, service worker, VAPID keys, persistent outbox, retry/expired-subscription tests | Real subscription and lock-screen delivery, especially iPhone |
 | Can Google Calendar be read? | Read-only OAuth probe provided; account credentials are not included | Authorise a test account and run probe |
 | Can AnyList be updated? | No supported public integration established from reviewed official help pages | Confirm a supported integration with AnyList; do not promise sync |
@@ -136,7 +138,7 @@ Apple reference: <https://webkit.org/blog/13878/>.
 
 ## Deliberate POC limitations
 
-- No full identity/membership system: high-entropy household access codes stand in for login.
+- The original personal instance still uses household codes. Phase 2 source now implements personal identities, roles, one-time recovery and hosted-mode authentication requirements; it has not been applied to that instance. Public signup and email recovery are not implemented.
   Cookies are HttpOnly, mutations require the configured same origin, and the model's tool
   credentials resolve a household server-side. This is not ready for public hosting.
 - Household tools can read/write their household records. A household access code is an

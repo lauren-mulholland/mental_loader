@@ -1,6 +1,6 @@
 # Architecture
 
-Agreed baseline: 26 October 2026; updated 27 October 2026. This document distinguishes the target boundaries from the smaller [current feasibility build](feasibility.md). Current next steps and operational state are in [development handoff](handoff.md).
+Agreed baseline: 26 October 2026; updated 25 November 2026. This document distinguishes the target boundaries from the smaller [current feasibility build](feasibility.md). Current next steps and operational state are in [development handoff](handoff.md).
 
 ## Components
 
@@ -8,7 +8,7 @@ Agreed baseline: 26 October 2026; updated 27 October 2026. This document disting
 flowchart TD
     UI["Laptop / phone PWA"] --> API["FastAPI application"]
     API --> Agent["Thin Hermes API adapter"]
-    Agent --> Hermes["Dedicated Hermes runtime"]
+    Agent --> Hermes["Scoped Hermes runtime · shared household or private chat"]
     Hermes --> Memory["Native memory and session recall"]
     Hermes --> Skills["Native skills and delegation"]
     Hermes --> Plugin["Native household plugin"]
@@ -73,18 +73,13 @@ The adapter checks Hermes' response-body status even on HTTP 200. Failed turns r
 
 The target structured model includes users, households, memberships, conversation participants, people, occasions, preparation tasks, timestamped pantry observations, grocery items, integration connections, workflow runs, notification subscriptions and delivery attempts. Hermes' native curated memory holds stable preferences and routines; its skills hold reusable household procedures. We are not building a parallel general-purpose memory service.
 
-The spike implements households, access-code sessions, conversations, messages, runs, tasks,
-push subscriptions/deliveries and basic AI usage records. SQLAlchemy creates the initial
-schema; versioned migrations and database row-level policies remain future work.
+The implementation includes individual identities/recovery, household memberships/roles, account sessions/devices, shared/private conversations with participants, actor-linked runs, tasks, encrypted account-scoped integrations, scoped runtime registrations, leased delivery and per-run/account usage. Five migrations preserve the old schema and enforce ancestry/immutable parent scopes through constraints and triggers. Browser, tool, worker and notification paths share conversation permissions. Model routing checks a separate, labeled, restricted container and state volume per shared household or private conversation. Only local compatibility mode can use the old single-household runtime; hosted mode refuses that fallback. See [phase 2 foundations](phase-2-accounts.md) for evidence and operational rules. Database row-level policies are not implemented; deterministic permissions, ancestry checks and runtime/capability boundaries are the tested controls.
 
 Application queries and tool handlers must check the household boundary. Background jobs,
 device subscriptions, credentials and agent context require the same isolation. A valid
 conversation ID alone never grants access.
 
-Only the personal household has an enabled Hermes route in this spike. Another household
-is refused rather than routed into the same profile. Separate profiles/processes are the
-initial candidate for future runtime isolation; profile-level memory and tool access must
-be validated before inviting friends. The current setup is not a hardened tenant sandbox.
+The original personal instance still has one enabled Hermes route and was not migrated by the phase 2 work. The new scoped mode requires a separate restricted container and labeled state volume for each shared household or private conversation, with encrypted API credentials and scope-bound backend capabilities. Native storage, routes, tools and restore scope checks have passed in temporary containers. Real provider quality, operational hosting and phone delivery remain separate checks before a friends pilot; host/Docker administrators remain trusted.
 
 ## Persistence and migration boundaries
 
@@ -105,7 +100,7 @@ The app uses `.venv` and the root lockfile; Hermes uses a separate environment a
 upstream revision under `.local/hermes-runtime`. Its private home is `.local/hermes-home`.
 Do not mix package environments or alter global Hermes settings for this project.
 
-PostgreSQL runs locally in Docker. The spike has one application process with one embedded chat-request worker, plus one dedicated Hermes runtime whose cron scheduler owns reminder timing. Both services must remain running for proactive delivery. It is not safe to scale this topology to multiple workers yet. Later, deploy the application and Hermes runtime with persistent state on a PaaS; the household's Hermes home must also survive redeployment.
+PostgreSQL runs locally in Docker. The spike has one application process with one embedded chat-request worker, plus one dedicated Hermes runtime whose cron scheduler owns reminder timing. Both services must remain running for proactive delivery. Chat and push work now use atomic leases and completion fencing, with concurrency tests on PostgreSQL and SQLite. New workers recover only expired claims; uncertain model executions are not replayed. Hosted capacity and deployment operations still require phase 5 validation. Later, deploy the application and Hermes runtime with persistent state on a PaaS; the household's Hermes home must also survive redeployment.
 
 Railway is the current hosting suggestion, not an infrastructure commitment. Preserve
 container-friendly processes, standard PostgreSQL and configurable providers so the app can

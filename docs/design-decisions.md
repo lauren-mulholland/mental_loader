@@ -1,6 +1,6 @@
 # Design decisions
 
-Agreed baseline: 26 October 2026; updated 27 October 2026. Accepted choices guide implementation; provisional choices and unresolved integrations should be revalidated as the POC produces evidence. See [development handoff](handoff.md) for current execution status.
+Agreed baseline: 26 October 2026; updated 25 November 2026. Accepted choices guide implementation; provisional choices and unresolved integrations should be revalidated as the POC produces evidence. See [development handoff](handoff.md) for current execution status.
 
 | Decision | Status | Rationale and consequence |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Agreed baseline: 26 October 2026; updated 27 October 2026. Accepted choices guid
 | Laptop and phone share a responsive PWA | Accepted | Saved chat and a small task view work across devices with little frontend overhead. Avoid native iPhone distribution and app-review overhead. WhatsApp is optional future work. |
 | Use Hermes sessions and keep a visible transcript | Accepted | Hermes manages agent context and recall. The app stores the messages shown in the PWA so they remain visible after refresh or device changes; that transcript does not replace native session memory. |
 | Household is the tenant boundary | Accepted | Support future sharing with friends. Authentication, records, integrations, jobs, memory and notification recipients must all respect household boundaries. |
-| Limit live Hermes to one household initially | Current POC limitation | Application isolation is being tested, but one shared personal Hermes runtime must not serve unrelated household data. Validate runtime isolation before expanding. |
+| Limit the existing personal runtime to one household | Preserved compatibility boundary | The original instance is unchanged. Phase 2 adds separately attested per-scope containers; never point unrelated households or private conversations at the personal shared runtime. |
 | Orchestrator plus specialists | Accepted direction | Split gifts, meals, appointments/supplies and home tasks by responsibility. Introduce specialists incrementally and invoke only the necessary ones. |
 | Google Calendar first | Accepted | First calendar feasibility target selected by the user. Start read-only; account authorisation and birthday-calendar coverage still need live validation. |
 | Investigate AnyList | Provisional | Preferred grocery-list integration, but a supported write/sync API has not been established. Keep an internal list/export fallback in scope. |
@@ -28,7 +28,7 @@ Agreed baseline: 26 October 2026; updated 27 October 2026. Accepted choices guid
 
 ## Deliberate simplifications
 
-The local spike uses high-entropy household access codes, polling chat, explicit `/remind` commands, one application request worker, one native Hermes reminder job, and initial schema creation instead of migrations. These are feasibility shortcuts, not the final shared-product security or operational design.
+The bounded pilot uses high-entropy individual credentials and one-time offline recovery instead of public signup or an external identity provider. Legacy household browser codes remain only before enrollment, and legacy tools/single-runtime routing are forbidden in hosted mode. The personal POC keeps its existing setup. Sharing foundations now include transactional migrations, account-scoped encrypted integrations, private participants, restricted per-scope runtime containers, persistent quotas and leased jobs. Public signup/email recovery, cloud provisioning and operational deployment remain later hosting work; see [phase 2 acceptance](phase-2-accounts.md).
 
 The PWA provides an optional product interface; native Hermes CLI is also an important
 learning surface. Use it to inspect tool selection, memory, delegation and failure behaviour
@@ -38,11 +38,11 @@ before hiding those details behind the web application.
 
 - Long-term provider/model choice based on cost and observed tool reliability; OpenRouter is already configured for current tests.
 - Reliable return of background specialist results through the selected Hermes API flow.
-- Safe Hermes memory/context/tool separation for multiple households.
+- Hosted runtime operations and live-provider reliability after the tested per-scope container isolation foundation.
 - Supported AnyList integration, or an accepted alternative.
 - Google account linking for a hosted app and coverage of relevant calendars/birthdays.
 - Quiet hours, digest timing, escalation, notification recipients and ownership defaults.
-- Final hosted identity provider, membership permissions, token encryption and deletion policy.
+- Whether public signup/email recovery needs an external identity provider, and the long-term deletion/ownership-transfer policy. Individual credentials, membership permissions, offline recovery and token encryption are implemented for the bounded pilot.
 - PaaS selection and resource sizing after measuring the local application.
 
 Personal hosting was discussed with a planning budget of approximately A$50/month, not a

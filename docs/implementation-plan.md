@@ -24,13 +24,15 @@ Exit criteria:
 
 ## Phase 2 — Foundations for sharing
 
+Completed in source and local acceptance checks on 25 November 2026 at the user's request. [Sharing foundations](phase-2-accounts.md) now include personal identities/recovery, roles, participants, five migrations and ancestry enforcement, account-scoped encrypted Google integration, attested containerized runtime routes/credentials, persistent quotas, leased/fenced jobs, device/session-bound notifications, per-account usage and encrypted backup/restore. All 66 tests pass on SQLite and PostgreSQL. Browser sign-in/recovery/private-chat checks and actual native container isolation, gateway/cron and fresh-volume restore checks pass. The original personal instance was not changed and no model credits were used. Remaining live-provider, phone-push and Google-consent checks are phase 1 gates; hosted deployment and invitations remain phase 5. Next feature work is phase 3.
+
 Introduce individual identities, households, owner/member roles, conversation participants,
 versioned database migrations, stronger isolation controls and account-scoped integrations.
 Validate separate Hermes contexts and credentials before connecting additional households.
 Add safe job claiming, rate limits, secrets handling and usage accounting as needed for hosting.
 
-Exit criteria: two real test accounts cannot access each other's private records, model
-context, tools or notifications, including through background jobs and guessed resource IDs.
+Exit criteria met in the local acceptance environment: independently authenticated test accounts cannot access each other's private records, native model context, scoped tools or notifications, including through background jobs and guessed resource IDs. Provider behavior is mocked where noted; native runtime storage, containers and credential boundaries are exercised directly.
+
 Do not invite friends based only on the access-code spike's isolation tests.
 
 ## Phase 3 — Birthday and gift workflow
