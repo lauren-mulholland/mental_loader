@@ -37,12 +37,15 @@ def export_env(destination):
         ).decode(),
         "VAPID_PUBLIC_KEY": settings.vapid_public_key,
         "VAPID_SUBJECT": settings.vapid_subject,
+        "APP_SECRET_KEY_B64": (
+            settings.secret_key_path.read_text().strip() if settings.secret_key_path.is_file()
+            else base64.urlsafe_b64encode(os.urandom(32)).decode()
+        ),
     }
     hermes = {
         "DEPLOYMENT_READY": "false",
         "ML_BACKEND_URL": "https://configure-after-first-deploy.invalid",
         "OPENROUTER_API_KEY": provider,
-        "ML_HOUSEHOLD_ACCESS_CODE": household["access_code"],
     }
     for name, values in (("web.env", web), ("hermes.env", hermes)):
         private_file(destination / name, "".join(

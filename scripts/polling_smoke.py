@@ -23,6 +23,7 @@ window.fetch = async (path, options = {}) => {
     data = ['a', 'b'].map(id => ({id, created_at: '2026-10-27T00:00:00Z'}));
   } else if (path.endsWith('/complete')) { f.tasks = []; data = {}; }
   else if (path === '/api/logout') data = {};
+  else if (path === '/api/birthdays') data = [];
   else if (method === 'POST' && path.endsWith('/messages')) {
     f.posts++;
     f.active = true;

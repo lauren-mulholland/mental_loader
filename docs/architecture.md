@@ -1,6 +1,6 @@
 # Architecture
 
-Agreed baseline: 26 October 2026; updated 27 October 2026. This document distinguishes the target boundaries from the smaller [current feasibility build](feasibility.md). Current next steps and operational state are in [development handoff](handoff.md).
+Agreed baseline: 26 October 2026; updated 25 November 2026. This document distinguishes the target boundaries from the smaller [current feasibility build](feasibility.md). Current next steps and operational state are in [development handoff](handoff.md).
 
 ## Components
 
@@ -8,7 +8,7 @@ Agreed baseline: 26 October 2026; updated 27 October 2026. This document disting
 flowchart TD
     UI["Laptop / phone PWA"] --> API["FastAPI application"]
     API --> Agent["Thin Hermes API adapter"]
-    Agent --> Hermes["Dedicated Hermes runtime"]
+    Agent --> Hermes["Scoped Hermes runtime · shared household or private chat"]
     Hermes --> Memory["Native memory and session recall"]
     Hermes --> Skills["Native skills and delegation"]
     Hermes --> Plugin["Native household plugin"]
@@ -79,7 +79,11 @@ Current chat uses polling. Reminder delivery uses a persistent outbox with bound
 and expired-subscription handling. Delivery is at least once, with notification tags to
 reduce visible duplicates. An accepted push is not proof of lock-screen display.
 
-The implemented browser interval is 2.5 seconds while visible, fetching messages and tasks even when idle. The agreed next change is fast polling while work is pending, approximately 30 seconds when idle, immediate refresh after actions/on tab return, and no hidden-tab polling or overlapping requests. This optimization is still pending; it does not alter the native reminder schedule or call models.
+The browser polls every 2.5 seconds while work is pending and every 30 seconds when idle.
+Actions and tab return refresh immediately; hidden tabs stop polling. Reads serialize and
+queue a fresh read after concurrent actions or conversation changes. Losing chat access clears
+the selected records and immediately loads a permitted conversation at the next refresh.
+This does not alter the native reminder schedule or call models.
 
 The adapter checks Hermes' response-body status even on HTTP 200. Failed turns retain reported usage, are saved as failed, and produce a request reference plus a safe error category in application logs. Hermes owns provider-call retries. A versioned compatibility patch adds bounded recovery for rejected encrypted reasoning on the OpenRouter chat-completions path; it preserves visible messages and tool receipts. See [local setup](local-setup.md#diagnosing-chat-failures) for diagnostics and the restart requirement.
 
@@ -87,18 +91,13 @@ The adapter checks Hermes' response-body status even on HTTP 200. Failed turns r
 
 The target structured model includes users, households, memberships, conversation participants, people, occasions, preparation tasks, timestamped pantry observations, grocery items, integration connections, workflow runs, notification subscriptions and delivery attempts. Hermes' native curated memory holds stable preferences and routines; its skills hold reusable household procedures. We are not building a parallel general-purpose memory service.
 
-The spike implements households, access-code sessions, conversations, messages, runs, tasks,
-push subscriptions/deliveries and basic AI usage records. SQLAlchemy creates the initial
-schema; versioned migrations and database row-level policies remain future work.
+The implementation includes individual identities/recovery, household memberships/roles, account sessions/devices, shared/private conversations with participants, actor-linked runs, tasks, encrypted account-scoped integrations, scoped runtime registrations, leased delivery and per-run/account usage. Five migrations preserve the old schema and enforce ancestry/immutable parent scopes through constraints and triggers. Browser, tool, worker and notification paths share conversation permissions. Model routing checks a separate, labeled, restricted container and state volume per shared household or private conversation. Only local compatibility mode can use the old single-household runtime; hosted mode refuses that fallback. See [phase 2 foundations](phase-2-accounts.md) for evidence and operational rules. Database row-level policies are not implemented; deterministic permissions, ancestry checks and runtime/capability boundaries are the tested controls.
 
 Application queries and tool handlers must check the household boundary. Background jobs,
 device subscriptions, credentials and agent context require the same isolation. A valid
 conversation ID alone never grants access.
 
-Only the personal household has an enabled Hermes route in this spike. Another household
-is refused rather than routed into the same profile. Separate profiles/processes are the
-initial candidate for future runtime isolation; profile-level memory and tool access must
-be validated before inviting friends. The current setup is not a hardened tenant sandbox.
+The original personal instance still has one enabled Hermes route and was not migrated by the phase 2 work. The new scoped mode requires a separate restricted container and labeled state volume for each shared household or private conversation, with encrypted API credentials and scope-bound backend capabilities. Native storage, routes, tools and restore scope checks have passed in temporary containers. Real provider quality, operational hosting and phone delivery remain separate checks before a friends pilot; host/Docker administrators remain trusted.
 
 ## Persistence and migration boundaries
 
@@ -135,5 +134,11 @@ without creating a second scheduler against the live household.
 
 Deploy current functionality first, then build adaptive onboarding and category views.
 See [Render deployment](deployment.md) for prerequisites, responsibilities and verification.
-This is not a multi-household launch. Accounts, memberships and runtime isolation remain
-required before inviting other households.
+This is not a multi-household launch. Account and local Docker-isolation foundations are
+implemented. On Render, `HOSTED_MODE=true` requires personal login and a private encryption
+key. `PAAS_PERSONAL_RUNTIME=true` explicitly permits only the configured household's shared
+chats to use its dedicated private service, with a separate tool credential. Private chats
+and other households never fall back to that service. Docker-attested scoped runtime routes
+remain available on a host that supports Docker; Render does not provide the web app with
+Docker access or equivalent attestation. Do not treat this personal PaaS route as verified
+multi-household runtime isolation.

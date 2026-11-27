@@ -42,11 +42,30 @@ def web_environment():
         raise RuntimeError("Hosted PUBLIC_ORIGIN must use HTTPS")
     os.environ["PUBLIC_ORIGIN"] = origin.rstrip("/")
     os.environ["COOKIE_SECURE"] = "true"
+    os.environ["HOSTED_MODE"] = "true"
+    os.environ["ALLOW_LEGACY_LOGIN"] = "false"
+    os.environ["PAAS_PERSONAL_RUNTIME"] = "true"
     if not os.environ.get("HERMES_BASE_URL"):
         os.environ["HERMES_BASE_URL"] = "http://" + require("HERMES_HOSTPORT")
     require("DATABASE_URL")
     require("HERMES_API_KEY", 16)
     require("HERMES_HOUSEHOLD_ID")
+    require("HERMES_TOOL_TOKEN", 32)
+    app_key = base64.urlsafe_b64decode(require("APP_SECRET_KEY_B64"))
+    if len(app_key) != 32:
+        raise RuntimeError("APP_SECRET_KEY_B64 must encode 32 bytes")
+    secret_path = Path(os.environ.get("SECRET_KEY_PATH", "/data/app-secret.key"))
+    secret_path.parent.mkdir(parents=True, exist_ok=True)
+    if secret_path.exists():
+        if base64.urlsafe_b64decode(secret_path.read_bytes().strip()) != app_key:
+            raise RuntimeError(
+                "App encryption key differs from persistent state; preserve the old key"
+            )
+    else:
+        descriptor = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(base64.urlsafe_b64encode(app_key))
+    os.environ["SECRET_KEY_PATH"] = str(secret_path)
     key = base64.b64decode(require("VAPID_PRIVATE_KEY_B64"), validate=True)
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec
@@ -114,7 +133,7 @@ def main():
         from sqlalchemy import select
 
         from mental_loader.config import Settings
-        from mental_loader.storage import Household, database
+        from mental_loader.storage import Household, Membership, database
 
         engine, sessions = database(Settings().database_url)
         with sessions() as db:
@@ -122,10 +141,16 @@ def main():
                 Household.id == os.environ["HERMES_HOUSEHOLD_ID"]
             )):
                 raise RuntimeError("Restore the household database before enabling the app")
+            if not db.scalar(select(Membership.user_id).where(
+                Membership.household_id == os.environ["HERMES_HOUSEHOLD_ID"],
+                Membership.role == "owner",
+            ).limit(1)):
+                raise RuntimeError("Create a personal household owner before enabling the app")
         engine.dispose()
         os.execvp("uvicorn", [
             "uvicorn", "mental_loader.app:create_app", "--factory", "--host", "0.0.0.0",
             "--port", str(port), "--workers", "1", "--timeout-graceful-shutdown", "20",
+            "--no-access-log",
         ])
     else:
         prepare_hermes(Path(require("HERMES_HOME")), port)

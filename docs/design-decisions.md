@@ -10,7 +10,7 @@ Agreed baseline: 26 October 2026; updated 4 November 2026. Accepted choices guid
 | Laptop and phone share a responsive PWA | Accepted | Saved chat and a small task view work across devices with little frontend overhead. Avoid native iPhone distribution and app-review overhead. WhatsApp is optional future work. |
 | Use Hermes sessions and keep a visible transcript | Accepted | Hermes manages agent context and recall. The app stores the messages shown in the PWA so they remain visible after refresh or device changes; that transcript does not replace native session memory. |
 | Household is the tenant boundary | Accepted | Support future sharing with friends. Authentication, records, integrations, jobs, memory and notification recipients must all respect household boundaries. |
-| Limit live Hermes to one household initially | Current POC limitation | Application isolation is being tested, but one shared personal Hermes runtime must not serve unrelated household data. Validate runtime isolation before expanding. |
+| Limit the existing personal runtime to one household | Preserved compatibility boundary | The original instance is unchanged. Phase 2 adds separately attested per-scope containers; never point unrelated households or private conversations at the personal shared runtime. |
 | Orchestrator plus specialists | Accepted direction | Split gifts, meals, appointments/supplies and home tasks by responsibility. Introduce specialists incrementally and invoke only the necessary ones. |
 | Google Calendar first | Accepted | First calendar feasibility target selected by the user. Personal read-only authorisation and primary-calendar birthday count were verified on 4 November; broader calendar coverage and automatic sync remain future work. |
 | Investigate AnyList | Provisional | Preferred grocery-list integration, but a supported write/sync API has not been established. Keep an internal list/export fallback in scope. |
@@ -28,9 +28,29 @@ Agreed baseline: 26 October 2026; updated 4 November 2026. Accepted choices guid
 | Reduce idle frontend polling | Agreed next direction; pending implementation | Poll quickly while a reply is pending, around every 30 seconds when idle, refresh after actions/on tab return and pause hidden tabs. Preserve the separate native reminder schedule. SSE can wait. |
 | Track narrow upstream compatibility fixes | Implemented workaround | Keep the pinned-runtime encrypted-reasoning recovery patch in version control, apply it idempotently and refuse conflicts. Preserve native runtime ownership and review whether the patch is still needed on upgrade. Live recovery remains unconfirmed. |
 
+## Consolidation decisions — 26 November 2026
+
+Merged Phase 2 (`ffc97d6`) into local main and retained the existing Render packaging,
+adaptive polling and per-chat Hermes session identity. The birthday commit (`1143534`) was
+reviewed selectively: keep its dated record, deterministic deadline/reconciliation helpers,
+minimal direct-edit panel, gift specialist and native tools. Adapt them to Phase 2 permissions,
+worker semantics, encrypted backups and migration 006. Do not copy its competing password
+accounts, migration module, encryption configuration or account-Calendar implementation.
+Calendar import helpers remain internal; selected-event import routes/background sync are
+not exposed by this consolidation. Original live evidence from that worktree is not proof
+that this combined build has performed those live operations.
+
+Render uses an explicit personal PaaS route with separate agent tool credentials, secure
+personal browser login and a persistent application encryption key. The default hosted mode
+still rejects the old single-runtime fallback. The explicit route permits only shared chats
+of the configured household; private chats and unrelated households have no fallback.
+Docker sandbox attestation is retained for locally managed scoped runtimes, not claimed for
+Render. This avoids mounting a Docker socket in the public web service. No remote push is
+authorized; local integration and commits only.
+
 ## Deliberate simplifications
 
-The local spike uses high-entropy household access codes, polling chat, explicit `/remind` commands, one application request worker, one native Hermes reminder job, and initial schema creation instead of migrations. These are feasibility shortcuts, not the final shared-product security or operational design.
+The bounded pilot uses high-entropy individual credentials and one-time offline recovery instead of public signup or an external identity provider. Legacy household browser codes remain only before enrollment, and legacy tools/single-runtime routing are forbidden in hosted mode. The personal POC keeps its existing setup. Sharing foundations now include transactional migrations, account-scoped encrypted integrations, private participants, restricted per-scope runtime containers, persistent quotas and leased jobs. Public signup/email recovery, cloud provisioning and operational deployment remain later hosting work; see [phase 2 acceptance](phase-2-accounts.md).
 
 The PWA provides an optional product interface; native Hermes CLI is also an important
 learning surface. Use it to inspect tool selection, memory, delegation and failure behaviour
@@ -40,7 +60,7 @@ before hiding those details behind the web application.
 
 - Long-term provider/model choice based on cost and observed tool reliability; OpenRouter is already configured for current tests.
 - Reliable return of background specialist results through the selected Hermes API flow.
-- Safe Hermes memory/context/tool separation for multiple households.
+- Hosted runtime operations and live-provider reliability after the tested per-scope container isolation foundation.
 - Supported AnyList integration, or an accepted alternative.
 - Google account linking for a hosted app and coverage of relevant calendars/birthdays.
 - Quiet hours, digest timing, escalation, notification recipients and ownership defaults.

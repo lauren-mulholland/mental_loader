@@ -1,5 +1,16 @@
 # Phase 1: technical feasibility
 
+## Consolidated local build — 26 November 2026
+
+Phase 2 accounts, membership/privacy rules, migrations, encrypted connections/backups and
+leased workers are integrated with Render packaging and a minimal dated birthday workflow.
+The combined suite passes 85 tests on SQLite and disposable PostgreSQL 17. Birthday UI checks
+pass at desktop/mobile widths. Additional browser and deployment checks are recorded in the
+handoff after completion. These are synthetic/local checks, not a new Google consent,
+provider-quality assessment, phone-push confirmation or hosted restore drill. Earlier live
+evidence below retains its original date and scope.
+
+
 Status updated 4 November 2026. Phase 1 remains in progress. Read [development handoff](handoff.md) for the current incident, operational state and ordered next actions.
 
 ## Current decision
@@ -170,7 +181,7 @@ This verifies late in-app reminder recovery after a graceful stop of both local 
 
 ## Deliberate POC limitations
 
-- No full identity/membership system: high-entropy household access codes stand in for login.
+- The original personal instance still uses household codes. Phase 2 source now implements personal identities, roles, one-time recovery and hosted-mode authentication requirements; it has not been applied to that instance. Public signup and email recovery are not implemented.
   Cookies are HttpOnly, mutations require the configured same origin, and the model's tool
   credentials resolve a household server-side. This is not ready for public hosting.
 - Household tools can read/write their household records. A household access code is an

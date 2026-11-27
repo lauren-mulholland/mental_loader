@@ -46,11 +46,15 @@ def main():
             source_url = f"postgresql://postgres:fixture-only@{db}:5432/source"
             docker("run", "--rm", "--platform", "linux/amd64", "--network", prefix,
                    "-e", f"DATABASE_URL={source_url}", "mental-loader-web:render", "python", "-c",
-                   "from mental_loader.storage import database, Household; "
+                   "from mental_loader.storage import database, Household, User, Membership; "
+                   "from mental_loader.storage import digest; "
                    "from mental_loader.config import Settings; "
                    "engine,sessions=database(Settings().database_url); "
                    "s=sessions(); s.add(Household(id='fixture-household',name='Fixture',"
-                   "access_hash='fixture')); s.commit(); engine.dispose()")
+                   "access_hash='fixture')); s.flush(); "
+                   "s.add(User(id='fixture-user',name='Owner',access_hash=digest('p'*43))); "
+                   "s.flush(); s.add(Membership(household_id='fixture-household',"
+                   "user_id='fixture-user',role='owner')); s.commit(); engine.dispose()")
             dump = work / "database.dump"
             dump.write_bytes(docker("exec", db, "pg_dump", "-U", "postgres", "-d", "source",
                                     "--format=custom", "--no-owner", "--no-acl"))
@@ -67,6 +71,8 @@ def main():
                 "HERMES_HOSTPORT": f"{hermes}:8642",
                 "HERMES_API_KEY": "k" * 43,
                 "HERMES_HOUSEHOLD_ID": "fixture-household",
+                "HERMES_TOOL_TOKEN": "h" * 43,
+                "APP_SECRET_KEY_B64": base64.urlsafe_b64encode(b"x" * 32).decode(),
                 "VAPID_PRIVATE_KEY_B64": base64.b64encode(pem).decode(),
                 "VAPID_PUBLIC_KEY": public,
                 "VAPID_SUBJECT": "mailto:fixture@example.com",
@@ -102,6 +108,13 @@ def main():
             docker("rm", "-f", web)
             run_web(True)
             assert wait_for(web_health) == {"ok": True}
+            # Hosted mode accepts the personal account and rejects the legacy login.
+            docker("exec", web, "python", "-c",
+                   "import json,urllib.request; request=urllib.request.Request("
+                   "'http://localhost:10000/api/login',data=json.dumps({'access_code':'p'*43})"
+                   ".encode(),headers={'Origin':'https://fixture.onrender.com',"
+                   "'Content-Type':'application/json'}); "
+                   "assert urllib.request.urlopen(request).status==200")
             docker("restart", web)
             assert wait_for(web_health) == {"ok": True}
             print("PASS: web setup, PostgreSQL restore, overwrite guard and restart.", flush=True)

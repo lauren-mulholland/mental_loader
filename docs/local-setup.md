@@ -1,6 +1,6 @@
 # Local setup and infrastructure
 
-For the current implementation and ordered next actions, read [development handoff](handoff.md). This guide also includes setup instructions for a fresh checkout; the user has already configured OpenRouter locally, so do not recreate credentials just to continue testing.
+For the current implementation and next actions, read [development handoff](handoff.md). Phase 2 sharing setup, account-scoped Google OAuth, runtime containers and backup/restore commands are in the [phase 2 guide](phase-2-accounts.md). This guide also includes setup instructions for a fresh checkout; the user has already configured OpenRouter locally, so do not recreate credentials just to continue testing.
 
 The first build runs on your laptop. No AWS, Fly, Railway, paid database, separate Redis service or cloud hosting account is required yet. You need one model-provider account for live chat, and trusted HTTPS for a later iPhone push test.
 
@@ -91,7 +91,7 @@ On 4 November 2026, a test reminder was saved, both app and Hermes were stopped 
 
 ## Diagnosing chat failures
 
-The app writes HTTP access logs and brief worker failures to the terminal running `make dev`. Failed chat replies include a request reference; search the terminal for that `run_id`. Worker logs include a safe failure category, without raw provider bodies, message text or keys. Hermes HTTP 200 responses still require a successful response-body status; a failed turn is recorded as failed and is not automatically replayed by the app. Hermes may retry individual provider calls internally.
+The CLI suppresses HTTP access logs to protect OAuth callback query strings and writes brief worker failures to the terminal running `make dev`. Failed chat replies include a request reference; search the terminal for that `run_id`. Worker logs include a safe failure category, without raw provider bodies, message text or keys. Hermes HTTP 200 responses still require a successful response-body status; a failed turn is recorded as failed and is not automatically replayed by the app. Hermes may retry individual provider calls internally.
 
 Hermes writes rotating logs to `.local/hermes-home/logs/`: `errors.log` contains provider errors and stack traces, `agent.log` contains runtime activity, and `gateway.log` contains gateway/session activity. Its secret redaction is enabled, but these logs can include ordinary conversation excerpts. Keep them private. The app currently has no separate persistent log file or external log service.
 
@@ -114,7 +114,7 @@ A real iPhone test passed on 2 November 2026: lock-screen display and correct-ch
 3. Set `PUBLIC_ORIGIN` to the exact HTTPS origin and `COOKIE_SECURE=true`, then restart the application. Keep the Hermes API private; only the app needs a phone-accessible URL.
 4. On iPhone, add the app to Home Screen, open it there, sign in, and enable notifications. Save a one-minute reminder, leave its checkmark untouched, close the app and lock the phone. Tapping the checkmark completes the task and stops its reminder. Allow for the one-minute scan interval. Confirm both receipt and navigation to the correct saved chat.
 
-This remains a personal development test; full accounts, membership controls and production hardening are prerequisites for inviting friends.
+This remains a personal development test. Account, membership, scoped runtime and restore foundations now exist in the phase 2 worktree; activating them and hosting securely are separate operator actions before inviting friends. Follow [phase 2 setup](phase-2-accounts.md) rather than copying or rotating existing credentials blindly.
 
 ## Google Calendar read access
 

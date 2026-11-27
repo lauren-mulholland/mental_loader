@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import io
 import tarfile
@@ -102,3 +103,32 @@ def test_hermes_startup_replaces_laptop_transport_but_preserves_memory(tmp_path,
     assert (home / "MEMORY.md").read_text() == "Stable preferences"
     assert (home / "config.yaml").read_text() == "model: unchanged\n"
     assert len(calls) == 1
+
+
+def test_hosted_startup_refuses_to_replace_persistent_encryption_key(tmp_path, monkeypatch):
+    module = deployment_module("start")
+    key = tmp_path / "app-secret.key"
+    original = base64.urlsafe_b64encode(b"a" * 32)
+    key.write_bytes(original)
+    key.chmod(0o600)
+    for name, value in {
+        "RENDER_EXTERNAL_URL": "https://fixture.onrender.com",
+        "HERMES_HOSTPORT": "fixture:8642",
+        "DATABASE_URL": "postgresql://fixture/db",
+        "HERMES_API_KEY": "k" * 43,
+        "HERMES_HOUSEHOLD_ID": "fixture-household",
+        "HERMES_TOOL_TOKEN": "t" * 43,
+        "APP_SECRET_KEY_B64": base64.urlsafe_b64encode(b"b" * 32).decode(),
+        "SECRET_KEY_PATH": str(key),
+        "PUBLIC_ORIGIN": "https://fixture.onrender.com",
+        "HERMES_BASE_URL": "http://fixture:8642",
+        # Track variables the entrypoint enforces so they cannot leak into later tests.
+        "COOKIE_SECURE": "false",
+        "HOSTED_MODE": "false",
+        "ALLOW_LEGACY_LOGIN": "true",
+        "PAAS_PERSONAL_RUNTIME": "false",
+    }.items():
+        monkeypatch.setenv(name, value)
+    with pytest.raises(RuntimeError, match="encryption key differs"):
+        module.web_environment()
+    assert key.read_bytes() == original

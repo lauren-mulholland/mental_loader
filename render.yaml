@@ -24,6 +24,23 @@ services:
           property: connectionString
       - key: COOKIE_SECURE
         value: "true"
+      - key: HOSTED_MODE
+        value: "true"
+      - key: ALLOW_LEGACY_LOGIN
+        value: "false"
+      - key: PAAS_PERSONAL_RUNTIME
+        value: "true"
+      - key: SECRET_KEY_PATH
+        value: /data/app-secret.key
+      - key: GOOGLE_WEB_CLIENT_PATH
+        value: /etc/secrets/google-web-client.json
+      - key: APP_SECRET_KEY_B64
+        sync: false
+      - key: HERMES_TOOL_TOKEN
+        fromService:
+          type: pserv
+          name: mental-loader-hermes
+          envVarKey: ML_HOUSEHOLD_ACCESS_CODE
       - key: AI_ENABLED
         value: "true"
       - key: AI_DAILY_CALL_LIMIT
@@ -68,7 +85,7 @@ services:
       - key: OPENROUTER_API_KEY
         sync: false
       - key: ML_HOUSEHOLD_ACCESS_CODE
-        sync: false
+        generateValue: true
       # Public HTTPS callback satisfies existing tool transport validation.
       # Set after Render assigns the web URL; setup mode does not use this value.
       - key: ML_BACKEND_URL

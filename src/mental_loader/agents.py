@@ -5,10 +5,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from mental_loader.domain import create_reminder
-from mental_loader.storage import AIUsage, Household, Run, now
+from mental_loader.permissions import can_access
+from mental_loader.runtimes import resolve, scope_id
+from mental_loader.storage import AIUsage, Conversation, Household, Run, RuntimeBinding, now
 
 PERSONA = Path(__file__).parent / "hermes_instructions.md"
 
@@ -36,6 +38,22 @@ class HouseholdAgent:
             )
             if run is None:
                 raise ValueError("Run not found")
+            text = run.input.strip()
+            if state.get("claim_token") and run.claim_token != state["claim_token"]:
+                raise HermesResponseError("stale_worker")
+            if state.get("claim_token") and (
+                run.status != "running"
+                or run.lease_until is None
+                or (
+                    run.lease_until.replace(tzinfo=UTC)
+                    if run.lease_until.tzinfo is None
+                    else run.lease_until
+                )
+                <= now()
+            ):
+                raise HermesResponseError("expired_worker")
+            if not can_access(db, run.household_id, run.conversation_id, run.requested_by):
+                raise HermesResponseError("conversation_access_revoked")
             household = db.get(Household, run.household_id)
             if text.startswith("/remind"):
                 try:
@@ -44,20 +62,49 @@ class HouseholdAgent:
                     return {"reply": str(error)}
                 local = task.due_at.astimezone(ZoneInfo(household.timezone))
                 return {"reply": f"Saved: {task.title}. Due {local:%d %b %Y, %H:%M %Z}."}
+            conversation_row = db.get(Conversation, run.conversation_id)
+            binding = db.get(
+                RuntimeBinding,
+                scope_id(
+                    run.household_id,
+                    run.conversation_id if conversation_row.visibility == "private" else None,
+                ),
+            )
+            if conversation_row.visibility != "household" and binding is None:
+                return {
+                    "reply": "Private chats support /remind commands. Natural-language AI "
+                    "is unavailable here until a separate private runtime is validated."
+                }
             if not settings.ai_enabled:
                 return {
                     "reply": "Hermes chat is off. /remind 1m Buy a birthday card works "
                     "without model credits. Configure Hermes and AI_ENABLED to chat naturally."
                 }
-            if settings.hermes_household_id != run.household_id:
+            route = resolve(db, settings, run.household_id, conversation_row) if binding else None
+            if route is None and (
+                (settings.hosted_mode and not settings.paas_personal_runtime)
+                or settings.hermes_household_id != run.household_id
+            ):
                 return {
                     "reply": "This household has no isolated Hermes runtime configured. "
                     "Tasks can be saved, but automatic delivery needs "
                     "this household's Hermes scheduler."
                 }
-            if not settings.hermes_api_key and self.respond is None:
+            endpoint, api_key, runtime_scope = route or (
+                settings.hermes_base_url,
+                settings.hermes_api_key,
+                scope_id(run.household_id),
+            )
+            if not api_key and self.respond is None:
                 return {"reply": "Set HERMES_API_KEY after configuring your local Hermes gateway."}
             midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+            # Serialize budget reservations across workers, including SQLite's
+            # lack of row-level FOR UPDATE. No provider call occurs in this transaction.
+            db.execute(
+                update(Household)
+                .where(Household.id == run.household_id)
+                .values(name=Household.name)
+            )
             count = db.scalar(
                 select(func.count())
                 .select_from(AIUsage)
@@ -65,7 +112,7 @@ class HouseholdAgent:
             )
             if count >= settings.ai_daily_call_limit:
                 return {"reply": "Daily Hermes request limit reached. Your reminders still work."}
-            usage = AIUsage(household_id=run.household_id)
+            usage = AIUsage(household_id=run.household_id, run_id=run.id, user_id=run.requested_by)
             db.add(usage)
             db.flush()
             usage_id = usage.id
@@ -80,12 +127,12 @@ class HouseholdAgent:
         # Named conversations retain Hermes' own tool/session history across reloads.
         # No automatic retry: an uncertain execution may already have changed tasks.
         with httpx.Client(
-            base_url=settings.hermes_base_url.rstrip("/"), timeout=120, follow_redirects=False
+            base_url=endpoint.rstrip("/"), timeout=120, follow_redirects=False
         ) as client:
             response = client.post(
                 "/v1/responses",
                 headers={
-                    "Authorization": f"Bearer {settings.hermes_api_key}",
+                    "Authorization": f"Bearer {api_key}",
                     "Idempotency-Key": state["run_id"],
                     # A new app chat must start a fresh native session/memory snapshot.
                     # Profile memory remains shared within the dedicated household home.

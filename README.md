@@ -33,9 +33,15 @@ actually been tested. A planned capability should not be assumed to exist in thi
 - Recurring home tasks and maintenance as the product grows.
 - Saved chat, upcoming tasks and proactive notifications with useful next actions.
 
-The tenancy boundary is a **household**, with individual accounts and memberships planned
-before a friends pilot. The local spike uses household access codes and tests two households;
-only the personal household is connected to a dedicated Hermes runtime.
+The tenancy boundary is a **household**. Individual personal-code accounts, owner/member
+roles, private conversations, encrypted connections, versioned migrations and isolated local
+runtime provisioning are implemented. The Render pilot uses one dedicated household runtime;
+private chats require separate provisioned runtimes for AI. Existing un-enrolled local
+households can still use their legacy codes; hosted browser login requires a personal account.
+
+The Birthdays & gifts panel supports direct dated-record editing, preparation tasks and gift
+suggestions without requiring chat for routine edits. See [birthday workflow](docs/birthday-workflow.md)
+and [account foundations](docs/phase-2-accounts.md).
 
 ## Run locally
 
@@ -49,7 +55,8 @@ uv run python -m mental_loader.cli init
 uv run python -m mental_loader.cli serve
 ```
 
-Open <http://localhost:8000>. Use the access code from `.local/access-codes.json`.
+Open <http://localhost:8000>. For an un-enrolled local household, use the code from
+`.local/access-codes.json`; enrolled households use their personal account code.
 The second household is for isolation testing; it does not share the personal Hermes runtime.
 Try `/remind 1m Buy a birthday card`. Close/reopen the page to check saved history.
 

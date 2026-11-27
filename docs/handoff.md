@@ -2,7 +2,40 @@
 
 Updated 26 November 2026; earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). This handoff records the last verified state; inspect the working tree and running services before changing anything.
 
-## Latest direction — 25 November 2026
+## Consolidation — 26 November 2026
+
+The user explicitly requested Phase 2 integration into local main, review of birthday work,
+updated deployment, tests and a local commit. **Do not push without asking first.**
+
+- Merge source: `ffc97d6` (Phase 2). Preserve main's adaptive polling, per-chat native session
+  identity and Render packaging. `verify-core-behaviour` functionality was already included.
+- Birthday source reviewed: `1143534`. Retain the deterministic dated workflow, direct-edit
+  panel, native gift tools/skill and tests; adapt to Phase 2 accounts, private conversation
+  permissions, migration 006 and encrypted backups. Its alternate auth/migrations/Calendar
+  stack was deliberately not imported. Selected-event imports/background sync remain deferred.
+- Personal accounts, owner/member roles, private chats, web OAuth/encrypted connections,
+  ordered migrations, scoped local Docker runtimes, quotas, encrypted backups and leased
+  work/delivery are now implemented. Do not mistake older descriptions of pending Phase 2
+  below for the current state.
+- Render now requires personal browser login, a persistent app key and a separate native
+  tool token. Its explicit one-household shared-chat route needs no Docker socket in the web
+  service and never serves private or unrelated-household chats. It is not Docker-attested
+  multi-household isolation. See [deployment](deployment.md).
+- Deployment files and test fixtures only: no original personal database migration,
+  enrollment, state transfer, cloud provisioning, model call or remote push was performed.
+- Validation: 85 tests pass with SQLite and with disposable PostgreSQL 17, including schema
+  adoption/concurrent migration, account/privacy, birthday lifecycle and encrypted restore.
+  Browser checks pass for desktop/mobile birthday editing and reload, private conversation
+  creation/sharing/revocation/recovery, and preserved adaptive polling. Both Render images
+  build; synthetic restore/login/restart and native home/container persistence checks pass.
+  Separate native processes preserve isolated memory/sessions and reject cross-household
+  tool access. Render's published Blueprint schema validates. No model calls were made.
+- Updated owner-only deployment inputs are in ignored `.local/render-phase2-inputs`; the
+  earlier `render-inputs` files are obsolete for this combined build. Hosted checks and real
+  Google consent/phone push still remain. The pre-existing Starlette/httpx deprecation
+  warning is the sole test warning.
+
+## Earlier direction — 25 November 2026 (superseded where noted)
 
 The user resumed work. This section supersedes the older pause and hosting priorities below.
 
@@ -43,16 +76,16 @@ Mental Loader is a personal household assistant intended to reduce the effort of
 
 | Area | Current state |
 | --- | --- |
-| App | FastAPI, SQLAlchemy/PostgreSQL, plain HTML/CSS/JavaScript PWA; one durable chat-request worker |
-| Persistence | Household-scoped messages, requests, tasks, push subscriptions/deliveries and basic AI usage; schema creation only, no versioned migrations |
-| Hermes connection | `src/mental_loader/agents.py` calls the private `/v1/responses` API with stable conversation and request identities; the app does not blindly replay uncertain executions |
-| Tools | `hermes_plugin/` exposes native clock, task list and reminder tools through authenticated backend endpoints; household credentials determine scope |
+| App | FastAPI, SQLAlchemy/PostgreSQL, plain HTML/CSS/JavaScript PWA; leased chat requests and fenced completion across workers |
+| Persistence | Five transactional revisions, household ancestry constraints, shared/private conversations, account-scoped integrations and per-run/account usage |
+| Hermes connection | Stable Responses conversations/request identities; attested scoped container routes or the unchanged local single-household legacy route; uncertain executions are not replayed |
+| Tools | Clock/task/reminder functions behind credentials bound to a household-shared or private-conversation scope; hosted mode rejects legacy household credentials |
 | Reminder timing | One native Hermes no-agent cron job calls `/api/tool/dispatch-reminders` every minute; Python evaluates due tasks and delivers the PWA outbox without inference |
 | Memory and skills | Native memory, session search, skills and delegation enabled; orchestrator/meals/supplies skill drafts and output contracts installed; learned skill edits are preserved during setup |
 | Cost controls | AI enable switch, top-level daily request limit, bounded Hermes iterations/concurrency; request counts are not dollar caps or counts of every provider call |
 | Model | User configured OpenRouter. Logs during the incident identified `openai/gpt-6-luna`; inspect current private configuration before assuming that remains selected |
 | Calendar | Personal Google Desktop OAuth read access verified 4 November; ten upcoming events read; one birthday matched the user’s expected count. Automatic sync remains unimplemented |
-| Sharing | Access-code POC only; no production identities, memberships, tenant sandbox or public deployment |
+| Sharing | Personal-code accounts, roles and private chats; scoped local runtimes; no public multi-household deployment |
 
 Live validation found and fixed a session-mapping issue: the adapter previously sent a household-only `X-Hermes-Session-Key`, causing new app chats to resolve to the same native session. The header now equals the household-and-conversation identifier also sent in the Responses body. Regression assertions cover stable mapping within a chat and different mapping across chats; live memory write/recall used distinct native sessions. This fix was installed in the original running checkout and loaded after the user restarted `make dev`. Existing saved response chains and profile memory are preserved.
 
@@ -60,7 +93,7 @@ Hermes owns agent context; the PostgreSQL transcript supports app-visible histor
 
 ## Environments, credentials and startup
 
-Work from `/Users/laurenmulholland/Projects/personal/mental_loader`. The application uses `.venv` and root `uv.lock`; Hermes uses `.local/hermes-runtime/.venv` and its own upstream lockfile. The wrapper selects `.local/hermes-home`, never global `~/.hermes`. The exact upstream revision is in `hermes-runtime.ref`.
+Work from `/Users/laurenmulholland/Projects/personal/mental_loader`; Phase 2 and the selected birthday workflow are now consolidated into its local main. Existing personal services were not restarted and the personal database was not migrated during consolidation. Application startup applies ordered migrations; preserve a backup before restarting that instance. The application uses `.venv` and root `uv.lock`; Hermes uses `.local/hermes-runtime/.venv` and its own upstream lockfile. The wrapper selects `.local/hermes-home`, never global `~/.hermes`. The exact upstream revision is in `hermes-runtime.ref`.
 
 - Root `.env`: app, database, push and private Hermes connection settings. `HERMES_API_KEY` authenticates app-to-Hermes; `AI_ENABLED` enables natural-language chat.
 - `.local/hermes-home/.env`: Hermes settings and `OPENROUTER_API_KEY`. Provider/model selection is in its `config.yaml`. Do not print keys or ask the user to paste them in chat.
@@ -73,7 +106,7 @@ make dev
 make doctor
 ```
 
-Inspect existing processes before starting another instance. The user has been running services in their own terminal; this chat does not have that terminal attached. Do not assume the latest patch has been loaded by those processes. No infrastructure changes or new keys are needed for the next local steps.
+Inspect existing processes before starting another instance. The user has been running services in their own terminal; this chat does not have that terminal attached. Do not assume the latest patch has been loaded by those processes. Continuing the existing personal POC needs no credential regeneration. Activating the new sharing topology is a separate operator setup using the phase 2 guide; do not overwrite the personal environment or enable paid calls automatically.
 
 ## Evidence and limits
 
@@ -92,9 +125,11 @@ The failed conversation contained encrypted reasoning with both OpenAI and Azure
 
 The app already checks the response-body status: HTTP 200 can carry a failed Hermes turn. Do not claim HTTP 200 alone is treated as success. The recent change retains usage on failed turns, logs a safe error category plus `run_id`, and includes that reference in the failed chat reply. It does not log raw provider bodies or request text.
 
-App HTTP/worker output currently goes to the terminal, with no separate persistent app log. Hermes rotating logs live in `.local/hermes-home/logs/{errors,agent,gateway}.log`. Native secret redaction is enabled, but logs can include ordinary household message excerpts. Inspect narrowly and avoid copying private contents into docs or chat.
+Worker output goes to the terminal, with no separate persistent app log. The CLI disables HTTP access logging to protect OAuth callback query strings, and database exceptions hide SQL parameters. Hermes rotating logs live in `.local/hermes-home/logs/{errors,agent,gateway}.log`. Native secret redaction is enabled, but logs can include ordinary household message excerpts. Inspect narrowly and avoid copying private contents into docs or chat.
 
-## Next steps, in order
+## Next work and outstanding live gates
+
+Phase 2 is complete in source and local acceptance checks. Next new development is phase 3: recipients, preferences, budgets, dates, preparation lead times and gift completion, then account-authorized calendar discovery/update handling. The following phase 1 checks remain separate; do not label feasibility or the hosted friends pilot complete based on phase 2 isolation tests.
 
 1. **Incident recovery confirmed.** On 27 October, verified the gateway had restarted after the patch, then sent one read-only request in the affected chat. It recalled the exact first user message, preserved the earlier app transcript and left tasks unchanged. The runtime log confirmed removal of four replay carriers and a successful bounded retry. One top-level model request was used; this is not a count of provider attempts or a dollar-cost measurement. This establishes recovery of the affected chat, not general multi-turn reliability.
 2. **Adaptive polling implemented.** `static/app.js` refreshes every 2.5 seconds while the selected chat has active runs and every 30 seconds when idle, measured after reads finish. Actions and tab return refresh immediately; hidden tabs stop polling. Refreshes serialize and queue a new read when an action or conversation switch occurs during an existing read. The separate once-per-minute no-agent reminder job is unchanged. `scripts/polling_smoke.py` exercises the actual frontend with a fake API and controlled browser clock: delayed reply, idle reminder, hidden/return, slow conversation switch, action during refresh, failed-read recovery, logout and single submission. This is frontend evidence, not a live scheduler/push check.

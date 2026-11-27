@@ -30,9 +30,10 @@ def register(ctx):
         raise ValueError("Configure ML_HOUSEHOLD_ACCESS_CODE in the dedicated Hermes home")
     opener = build_opener(ProxyHandler({}), NoRedirect())
 
-    def call(path, args=None):
+    def call(path, args=None, method=None):
         request = Request(
             origin + path,
+            method=method,
             data=json.dumps(args).encode() if args is not None else None,
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         )
@@ -93,6 +94,57 @@ def register(ctx):
             remind,
         ),
     ]
+
+    def save_birthday(args, **kwargs):
+        from uuid import UUID
+
+        birthday_id = str(UUID(args["birthday_id"]))
+        body = {key: value for key, value in args.items() if key != "birthday_id"}
+        return call("/api/tool/birthdays/" + birthday_id, body, method="PUT")
+
+    schemas.extend(
+        [
+            (
+                "household_birthdays",
+                "Read saved dated birthdays, budgets and gift progress.",
+                {},
+                [],
+                lambda args, **kwargs: call("/api/tool/birthdays"),
+            ),
+            (
+                "household_save_birthday",
+                "Save or update one dated birthday. Reuse birthday_id on retry. "
+                "Read existing records first and preserve fields. "
+                "Ready or cancelled stops reminders; purchased does not.",
+                {
+                    "birthday_id": {"type": "string", "format": "uuid"},
+                    "conversation_id": {"type": "string", "format": "uuid"},
+                    "recipient": {"type": "string", "maxLength": 100},
+                    "occasion_date": {"type": "string", "format": "date"},
+                    "preferences": {"type": "string", "maxLength": 1000},
+                    "budget": {"type": ["number", "null"], "minimum": 0},
+                    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+                    "lead_days": {"type": "integer", "minimum": 0, "maximum": 365},
+                    "gift_status": {
+                        "type": "string",
+                        "enum": ["planning", "purchased", "ready", "cancelled"],
+                    },
+                },
+                [
+                    "birthday_id",
+                    "conversation_id",
+                    "recipient",
+                    "occasion_date",
+                    "preferences",
+                    "budget",
+                    "currency",
+                    "lead_days",
+                    "gift_status",
+                ],
+                save_birthday,
+            ),
+        ]
+    )
     for name, description, properties, required, handler in schemas:
         ctx.register_tool(
             name=name,
