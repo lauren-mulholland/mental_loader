@@ -2,6 +2,36 @@
 
 Updated 26 November 2026; earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). This handoff records the last verified state; inspect the working tree and running services before changing anything.
 
+## Railway budget deployment — 26 November 2026
+
+The user selected Railway to target approximately US$10/month and explicitly accepts
+shutdown at a hard cap. This supersedes Render as the default host. **Do not push.**
+
+- Set a personal Railway workspace US$10 **Compute** hard limit and US$8 email alert before
+  provisioning. This is an external billing setting, not part of IaC, and has not been set
+  or verified by this work. OpenRouter costs/tax are separate. Do not raise the cap silently.
+- `.railway/railway.ts` uses the supported TypeScript IaC SDK, not the retired railway.json
+  format. It defines Web/Hermes/PostgreSQL 17, same-region persistent storage, single replicas,
+  sleeping disabled, 512 MiB Web/Hermes and 256 MiB database maxima with 0.5 CPU limits.
+- The user prefers GitHub connection: both app services now reference the personal repo
+  main branch. Connect the GitHub app and apply IaC once; source pushes do not apply IaC.
+  No push, repository connection or cloud deployment was performed here. Shared variables hold
+  independent `WEB_READY`/`HERMES_READY` flags; preserve both false until state is restored.
+- Private initial inputs are in ignored `.local/railway-inputs/shared.env`. A bootstrap app
+  key is preserved separately when no local app key exists. Do not regenerate inputs for a
+  running deployment. Local personal database/runtime state has not been migrated or stopped.
+- [Deployment](deployment.md) is now the Railway guide; [Render instructions](deployment-render.md)
+  and render.yaml remain historical alternatives. There has been no Railway login, live
+  plan/apply, deployment, budget change or Git push by this work.
+- Native memory, account/privacy boundaries, scheduler ownership and the restricted personal
+  PaaS route remain unchanged. Private-chat AI still requires an isolated scoped runtime.
+- Validation: 94 Python tests and lint pass; the pinned Railway SDK passes type/graph checks.
+  Both images build. Railway-mode disposable containers pass setup, PostgreSQL restore,
+  personal login, restart, native state persistence and single no-agent scheduler checks
+  under 512 MiB Web/Hermes and 256 MiB database limits. Measured usage was approximately
+  115 / 231 / 49 MiB respectively. These are synthetic checks without inference, not a
+  live Railway plan/deployment, confirmed monthly cost, or proof the workspace cap is set.
+
 ## Consolidation — 26 November 2026
 
 The user explicitly requested Phase 2 integration into local main, review of birthday work,

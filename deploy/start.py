@@ -1,4 +1,4 @@
-"""Render entrypoints. Setup mode permits state transfer without workers or a scheduler."""
+"""PaaS entrypoints. Setup mode permits state transfer without workers or a scheduler."""
 
 import base64
 import json
@@ -36,17 +36,35 @@ def require(name, minimum=1):
     return value
 
 
+def public_origin():
+    origin = os.environ.get("PUBLIC_ORIGIN")
+    if not origin and os.environ.get("RAILWAY_PUBLIC_DOMAIN"):
+        origin = "https://" + require("RAILWAY_PUBLIC_DOMAIN")
+    if not origin:
+        origin = require("RENDER_EXTERNAL_URL")
+    parsed = urlparse(origin)
+    if (
+        parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+        or parsed.path not in ("", "/") or parsed.query or parsed.fragment
+        or parsed.hostname.endswith(".invalid")
+    ):
+        raise RuntimeError("Set PUBLIC_ORIGIN to the hosted HTTPS origin before enabling the app")
+    return origin.rstrip("/")
+
+
 def web_environment():
-    origin = os.environ.get("PUBLIC_ORIGIN") or require("RENDER_EXTERNAL_URL")
-    if urlparse(origin).scheme != "https":
-        raise RuntimeError("Hosted PUBLIC_ORIGIN must use HTTPS")
+    origin = public_origin()
     os.environ["PUBLIC_ORIGIN"] = origin.rstrip("/")
     os.environ["COOKIE_SECURE"] = "true"
     os.environ["HOSTED_MODE"] = "true"
     os.environ["ALLOW_LEGACY_LOGIN"] = "false"
     os.environ["PAAS_PERSONAL_RUNTIME"] = "true"
     if not os.environ.get("HERMES_BASE_URL"):
-        os.environ["HERMES_BASE_URL"] = "http://" + require("HERMES_HOSTPORT")
+        if os.environ.get("HERMES_HOST"):
+            host = require("HERMES_HOST")
+            os.environ["HERMES_BASE_URL"] = f"http://{host}:{os.environ.get('HERMES_PORT', '8642')}"
+        else:
+            os.environ["HERMES_BASE_URL"] = "http://" + require("HERMES_HOSTPORT")
     require("DATABASE_URL")
     require("HERMES_API_KEY", 16)
     require("HERMES_HOUSEHOLD_ID")

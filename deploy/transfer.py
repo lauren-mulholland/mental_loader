@@ -4,6 +4,7 @@ import argparse
 import base64
 import json
 import os
+import secrets
 import socket
 import subprocess
 import tarfile
@@ -18,7 +19,7 @@ def private_file(path, content):
         stream.write(content)
 
 
-def export_env(destination):
+def export_env(destination, platform="railway"):
     from dotenv import dotenv_values
 
     from mental_loader.config import Settings
@@ -29,6 +30,21 @@ def export_env(destination):
     if not provider:
         raise RuntimeError("Configure the existing OpenRouter key before exporting")
     destination.mkdir(parents=True, exist_ok=True, mode=0o700)
+    app_key = settings.secret_key_path
+    bootstrap_key = ROOT / ".local/deployment-app-secret.key"
+    if app_key.is_file():
+        encoded_key = app_key.read_text().strip()
+    elif bootstrap_key.is_file():
+        encoded_key = bootstrap_key.read_text().strip()
+    else:
+        # Preserve the key prepared for the earlier, undeployed Render setup.
+        previous = dotenv_values(ROOT / ".local/render-phase2-inputs/web.env")
+        encoded_key = previous.get("APP_SECRET_KEY_B64") or base64.urlsafe_b64encode(
+            os.urandom(32)
+        ).decode()
+        private_file(bootstrap_key, encoded_key + "\n")
+    if len(base64.urlsafe_b64decode(encoded_key)) != 32:
+        raise RuntimeError("The existing deployment app key is invalid; preserve it for review")
     web = {
         "DEPLOYMENT_READY": "false",
         "HERMES_HOUSEHOLD_ID": household["household_id"],
@@ -37,21 +53,33 @@ def export_env(destination):
         ).decode(),
         "VAPID_PUBLIC_KEY": settings.vapid_public_key,
         "VAPID_SUBJECT": settings.vapid_subject,
-        "APP_SECRET_KEY_B64": (
-            settings.secret_key_path.read_text().strip() if settings.secret_key_path.is_file()
-            else base64.urlsafe_b64encode(os.urandom(32)).decode()
-        ),
+        "APP_SECRET_KEY_B64": encoded_key,
     }
     hermes = {
         "DEPLOYMENT_READY": "false",
         "ML_BACKEND_URL": "https://configure-after-first-deploy.invalid",
         "OPENROUTER_API_KEY": provider,
     }
-    for name, values in (("web.env", web), ("hermes.env", hermes)):
+    if platform == "railway":
+        shared = {
+            key: value for key, value in web.items() if key != "DEPLOYMENT_READY"
+        }
+        shared.update({
+            "OPENROUTER_API_KEY": provider,
+            "HERMES_API_KEY": secrets.token_urlsafe(32),
+            "HERMES_TOOL_TOKEN": secrets.token_urlsafe(32),
+            "WEB_ORIGIN": "https://configure-after-first-deploy.invalid",
+            "WEB_READY": "false",
+            "HERMES_READY": "false",
+        })
+        outputs = (("shared.env", shared),)
+    else:
+        outputs = (("web.env", web), ("hermes.env", hermes))
+    for name, values in outputs:
         private_file(destination / name, "".join(
             f"{key}={json.dumps(value)}\n" for key, value in values.items()
         ))
-    print(f"Private Render inputs saved in {destination}; import locally in Render, not chat.")
+    print(f"Private {platform} inputs saved in {destination}; import in its dashboard, not chat.")
 
 
 def snapshot(destination):
@@ -143,9 +171,11 @@ def restore_database(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("export-env", "snapshot"):
-        command = sub.add_parser(name)
-        command.add_argument("destination", type=Path)
+    export = sub.add_parser("export-env")
+    export.add_argument("destination", type=Path)
+    export.add_argument("--platform", choices=("railway", "render"), default="railway")
+    snapshot_command = sub.add_parser("snapshot")
+    snapshot_command.add_argument("destination", type=Path)
     home = sub.add_parser("restore-home")
     home.add_argument("archive", type=Path)
     home.add_argument("--destination", type=Path, default=Path("/data/hermes-home"))
@@ -153,7 +183,7 @@ def main():
     db.add_argument("archive", type=Path)
     args = parser.parse_args()
     if args.command == "export-env":
-        export_env(args.destination)
+        export_env(args.destination, args.platform)
     elif args.command == "snapshot":
         snapshot(args.destination)
     elif args.command == "restore-home":

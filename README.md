@@ -6,7 +6,7 @@ responsibilities. It should proactively suggest the next useful action, so the u
 The first version is a **Hermes learning POC**, with a web app for both laptop and phone.
 Deterministic household functions, storage and reminders live in plain Python; Hermes provides conversation and optional delegation through a native plugin. The code is structured so the agent runtime can be replaced later.
 
-The current build is a local technical-feasibility spike. Next is a private personal Render
+The current build is a local technical-feasibility spike. Next is a private personal Railway
 deployment, followed by adaptive onboarding and category views alongside chat. The target
 is a household app with built-in agent support. It is not ready for a multi-user launch.
 No paid model calls run by default.
@@ -18,7 +18,7 @@ No paid model calls run by default.
 | [Product requirements](docs/product-requirements.md) | Purpose, users, household capabilities, constraints and boundaries |
 | [Architecture](docs/architecture.md) | Components, request flows, data ownership and tenant isolation |
 | [Design decisions](docs/design-decisions.md) | Agreed choices, reasons, tradeoffs and open questions |
-| [Render deployment](docs/deployment.md) | Personal hosting layout, setup responsibilities and launch checks |
+| [Railway deployment](docs/deployment.md) | Personal hosting layout, setup responsibilities and launch checks |
 | [Implementation plan](docs/implementation-plan.md) | Staged delivery, testing and readiness criteria |
 | [Feasibility report](docs/feasibility.md) | Current evidence, setup instructions and outstanding live checks |
 
@@ -42,6 +42,15 @@ households can still use their legacy codes; hosted browser login requires a per
 The Birthdays & gifts panel supports direct dated-record editing, preparation tasks and gift
 suggestions without requiring chat for routine edits. See [birthday workflow](docs/birthday-workflow.md)
 and [account foundations](docs/phase-2-accounts.md).
+
+## Hobby hosting
+
+Railway Hobby is the selected host, targeting approximately US$5–10/month before model
+usage/tax. Set the workspace **US$10 Compute hard limit** and US$8 alert before creating
+services; the user accepts shutdown when the limit is reached. The repository does not set
+that billing limit. Web, Hermes and PostgreSQL remain awake while the budget permits.
+See [deployment steps](docs/deployment.md). Railway builds both app services from GitHub main after initial repository connection and
+infrastructure apply. Pushing app code does not automatically apply infrastructure changes. The previous Render Blueprint is an archived, higher-cost alternative.
 
 ## Run locally
 

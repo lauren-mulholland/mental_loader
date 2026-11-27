@@ -1,3 +1,5 @@
+# Historical alternative only: Railway is the selected US$10-budget host.
+# See docs/deployment.md; do not provision this higher-cost Blueprint by default.
 # Initial deployments stay in setup mode until personal data has been restored.
 # Review paid service sizes in Render before creating resources.
 services:

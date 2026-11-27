@@ -114,6 +114,18 @@ agent should reuse these functions, the database, application API and PWA. Expec
 agent definitions, tool registration, context/session integration, delegation and runtime
 hooks. Full internal execution-state portability is not promised.
 
+## Railway hosting decision — 26 November 2026
+
+Railway supersedes Render for the personal pilot at the user's approximately US$10/month
+budget. A US$10 workspace Compute hard cap is explicitly requested, with shutdown accepted.
+The cap is configured/verified in Railway separately from `.railway/railway.ts`. Keep one
+awake Web, one private Hermes, and PostgreSQL 17 with persistent data/native state; only Web
+receives a public domain. Both app services build GitHub main after repository connection
+and initial infrastructure apply. Later app pushes do not automatically apply IaC.
+The app can derive its HTTPS origin from Railway's domain or an explicit origin, and uses
+Hermes' private hostname. Existing personal-account and private-chat boundaries are preserved.
+See [deployment](deployment.md); the Render discussion below is historical alternative context.
+
 ## Local development and deployment
 
 The app uses `.venv` and the root lockfile; Hermes uses a separate environment and pinned

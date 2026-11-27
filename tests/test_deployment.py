@@ -3,6 +3,7 @@ import importlib.util
 import io
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -132,3 +133,67 @@ def test_hosted_startup_refuses_to_replace_persistent_encryption_key(tmp_path, m
     with pytest.raises(RuntimeError, match="encryption key differs"):
         module.web_environment()
     assert key.read_bytes() == original
+
+
+@pytest.mark.parametrize("variables,expected", [
+    ({"RAILWAY_PUBLIC_DOMAIN": "fixture.up.railway.app"}, "https://fixture.up.railway.app"),
+    ({"RENDER_EXTERNAL_URL": "https://fixture.onrender.com"}, "https://fixture.onrender.com"),
+    ({"PUBLIC_ORIGIN": "https://household.example/", "RAILWAY_PUBLIC_DOMAIN": "ignored"},
+     "https://household.example"),
+])
+def test_hosted_origin_uses_platform_or_explicit_domain(monkeypatch, variables, expected):
+    for name in ("PUBLIC_ORIGIN", "RAILWAY_PUBLIC_DOMAIN", "RENDER_EXTERNAL_URL"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in variables.items():
+        monkeypatch.setenv(name, value)
+    assert deployment_module("start").public_origin() == expected
+
+
+@pytest.mark.parametrize("origin", [
+    "http://household.example", "https://user:password@household.example",
+    "https://household.example/path", "https://household.example?key=value",
+    "https://configure-after-first-deploy.invalid",
+])
+def test_hosted_origin_rejects_setup_placeholders_and_non_origins(monkeypatch, origin):
+    monkeypatch.setenv("PUBLIC_ORIGIN", origin)
+    with pytest.raises(RuntimeError, match="hosted HTTPS origin"):
+        deployment_module("start").public_origin()
+
+
+def test_railway_input_export_keeps_app_identity_and_separates_agent_credentials(
+    tmp_path, monkeypatch, capsys,
+):
+    import json
+
+    from dotenv import dotenv_values
+
+    module = deployment_module("transfer")
+    module.ROOT = tmp_path
+    local = tmp_path / ".local"
+    home = local / "hermes-home"
+    home.mkdir(parents=True)
+    (local / "access-codes.json").write_text(json.dumps({"My household": {
+        "household_id": "household-fixture", "access_code": "legacy-code-must-not-be-used",
+    }}))
+    (home / ".env").write_text("OPENROUTER_API_KEY=private-fixture-provider-key\n")
+    private = local / "vapid.pem"
+    private.write_bytes(b"fixture-key")
+    settings = SimpleNamespace(
+        vapid_private_key_path=private, vapid_public_key="fixture-public-key",
+        vapid_subject="mailto:fixture@example.com", secret_key_path=local / "absent-app-key",
+    )
+    monkeypatch.setattr("mental_loader.config.Settings", lambda: settings)
+    first, second = local / "first", local / "second"
+    module.export_env(first)
+    module.export_env(second)
+    values, repeated = (dotenv_values(path / "shared.env") for path in (first, second))
+    assert values["APP_SECRET_KEY_B64"] == repeated["APP_SECRET_KEY_B64"]
+    assert values["HERMES_HOUSEHOLD_ID"] == "household-fixture"
+    assert values["WEB_READY"] == values["HERMES_READY"] == "false"
+    assert len(values["HERMES_TOOL_TOKEN"]) >= 32
+    assert values["HERMES_TOOL_TOKEN"] != values["HERMES_API_KEY"]
+    assert "legacy-code-must-not-be-used" not in (first / "shared.env").read_text()
+    assert (first / "shared.env").stat().st_mode & 0o077 == 0
+    assert "private-fixture-provider-key" not in capsys.readouterr().out
+    with pytest.raises(FileExistsError):
+        module.export_env(first)

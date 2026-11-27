@@ -4,7 +4,7 @@ For the current implementation and next actions, read [development handoff](hand
 
 The first build runs on your laptop. No AWS, Fly, Railway, paid database, separate Redis service or cloud hosting account is required yet. You need one model-provider account for live chat, and trusted HTTPS for a later iPhone push test.
 
-For the next private personal hosted release, use [Render deployment](deployment.md).
+For the next private personal hosted release, use [Railway deployment](deployment.md).
 The local instructions below remain useful for development; the 25 November hosting
 decision supersedes earlier statements that cloud setup is not needed yet.
 

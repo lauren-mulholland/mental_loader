@@ -1,245 +1,266 @@
-# Private personal deployment on Render
+# Railway personal deployment
 
-Updated 26 November 2026. Deploy current functionality first; adaptive onboarding and
-category views follow. Deployment files are prepared locally. No Render resources have been
-created by this work and the application has not yet been verified on Render.
+Accepted 26 November 2026. Target hosting budget: approximately US$5–10/month, excluding
+model usage and tax. The user explicitly accepts service shutdown at a US$10 hard limit.
+**Do not push Git changes without permission.** The user will publish the changes; Railway
+can then build both app services from GitHub main.
 
-## What is prepared
+## 1. Set the hard cap first
 
-- `render.yaml`: one public web service, one private Hermes service, managed PostgreSQL,
-  Oregon region, private-only database access and persistent disks.
-- Separate Docker images with Python 3.14.6, locked application dependencies and the exact
-  Hermes revision/patch/validation dependencies already used locally.
-- Setup mode: both services bind their ports but do not start the app worker or Hermes
-  scheduler until `DEPLOYMENT_READY=true`. Setup health reports `ready: false` explicitly.
-- Hosted startup: the app derives its HTTPS origin from Render, enables secure cookies,
-  verifies a restored household with a personal owner account and matching VAPID keys,
-  persists the application encryption key, disables legacy login, and uses one Uvicorn worker.
-- Hermes startup preserves imported memory/config/model selection, refreshes the household
-  plugin and reminder script, and applies cloud bind/credential settings to its home `.env`.
-- Private input export and stopped-service state transfer helpers in `deploy/transfer.py`.
+Create a personal Railway account/workspace on the **Hobby** plan, not Pro. Before creating
+running services, open the correct workspace's **Usage > Set Usage Limits** and set:
 
-The web disk is deliberately retained even though records live in PostgreSQL: Render stops
-an instance with a disk before starting its replacement. This avoids overlapping embedded
-workers during deploys. Hermes likewise runs as exactly one instance with one native cron
-scheduler. Brief deploy downtime is expected. Do not scale either service horizontally.
+| Compute Usage setting | Value |
+| --- | --- |
+| Custom email alert | US$8 |
+| Hard limit | **US$10** |
 
-## Costs and account setup
+Save, reopen and verify that the hard limit is active. These limits cover the entire selected
+workspace, not just one project. Use the personal workspace intended for this hobby app.
+The cap is a Railway account setting: **the repository cannot set or verify it** and it has
+not been configured by this change. Do not mistake local resource limits for a billing cap.
 
-Use a personal Render account connected to `lauren-mulholland/mental_loader`. Keep repository
-visibility unchanged. Add billing and review the resource prices before creating the Blueprint.
+The Hobby minimum is US$5/month and includes US$5 of resource usage. This is not US$5 on top
+of all compute. The limit targets Railway compute usage (CPU, RAM, storage and egress).
+OpenRouter billing, tax and any separately selected subscription/add-ons are outside it.
+Our Hermes process is not Railway's separately billed "Railway Agent" product.
 
-The initial sizes are **Starter web (512 MB), Standard Hermes (2 GB), Basic PostgreSQL
-(256 MB), a 1 GB web disk, a 5 GB Hermes disk and 1 GB database storage**. Hermes memory needs
-have not been measured on Render; 2 GB is an initial conservative allocation, not a demonstrated
-minimum. Review the combined price in Render; the previous approximately A$50/month was a
-planning budget, not a quote or spending cap. Model-provider usage is billed separately.
-
-No custom domain is needed. Render supplies the HTTPS origin. Nothing needs to run on the
-laptop after cutover. Keeping Hermes running consumes service compute, but the once-per-minute
-reminder dispatcher is a native no-agent script and does not itself request model inference.
-
-## 1. Publish the deployment files
-
-Review and commit the intended working-tree changes, including existing local implementation
-changes needed by the pinned runtime. Push to the GitHub branch that Render will deploy.
-The private `.env`, `.local`, provider credentials and state snapshots must remain ignored.
-The Docker context uses an allowlist and does not contain these private files.
-
-## 2. Prepare private Blueprint inputs
-
-From the repository root:
+After installing/logging into the current Railway CLI, the equivalent commands are:
 
 ```sh
-uv run python deploy/transfer.py export-env .local/render-phase2-inputs
+railway usage limit set --target workspace --soft 8 --hard 10
+railway usage limit status --target workspace
 ```
 
-This creates private `web.env` and `hermes.env` files without printing values. It refuses to
-overwrite existing files. Use the new `render-phase2-inputs` folder; earlier `render-inputs` files
-are obsolete for the combined build. The web file contains the existing household ID, VAPID identity and app encryption key
-(or a new key when the local pilot has none). The Hermes file contains the OpenRouter key.
-Render generates a new tool credential, separate from the old household login code, and
-passes it to the web service as `HERMES_TOOL_TOKEN`.
-Both include `DEPLOYMENT_READY=false`; Hermes also has a deliberately invalid callback URL
-until the real web URL is assigned. Existing model selection travels with the native home.
+Check the workspace identity before changing billing. At the hard limit, Railway takes the
+workloads offline; the user has accepted that outcome. The app and reminders will stop.
+Keep backups; do not delete persistent volumes to respond to a cap. Check the Usage page
+and restart/redeploy when the budget permits. Do not assume a reset automatically restarts
+everything. Overdue reminders can arrive late after recovery; interrupted model work is
+not blindly replayed.
 
-These files are sensitive. Open them locally for the Render input fields; do not paste them
-into chat. Render generates both the private Hermes API key and its distinct household tool
-credential. The web service references them automatically. Neither is a browser login code.
-Preserve `APP_SECRET_KEY_B64` and the matching `/data/app-secret.key` with encrypted backups;
-startup refuses a different key rather than silently making saved connections unreadable.
+## 2. Install local tooling and create an empty project
 
-## 3. Create the Blueprint in setup mode
-
-1. In Render, choose **New > Blueprint**, select this repository and the branch containing
-   `render.yaml`, and use `render.yaml` as the Blueprint path.
-2. Enter each prompted value from the corresponding private input file. Enter **false** for
-   both `DEPLOYMENT_READY` fields. Supply the initial invalid `ML_BACKEND_URL` placeholder
-   from `hermes.env`; it is unused in setup mode.
-3. Review the paid resource list and confirm creation when the price is acceptable.
-4. Wait for both service images to build and start. The public app returns a setup response
-   with HTTP 503; `/healthz` returns 200 with `setup: true, ready: false`. This is expected.
-5. Note the public web HTTPS URL. On the Hermes service, set `ML_BACKEND_URL` to that exact
-   origin, without a trailing path. Save without enabling the service yet.
-
-Do not import the root local `.env` wholesale: its database, origin and loopback URLs are for
-the laptop. The Blueprint uses internal database networking and a private Hermes API.
-Hermes calls the public HTTPS web origin for authenticated household tools because the
-existing plugin deliberately refuses non-loopback plain HTTP callbacks.
-
-Automatic Git deploys are disabled initially. `DEPLOYMENT_READY` and the callback are
-manually managed values (`sync: false`), so Blueprint sync does not reset the cutover flags.
-
-## 4. Take the final snapshot
-
-Leave local PostgreSQL running. Stop `make dev` in its terminal so the app and Hermes are
-both stopped; do not kill unrelated processes. Then run:
+The project needs Node 22.18+ for its small infrastructure package and a current Railway
+CLI (5.63.0 or newer). The application and Hermes remain Python; Node is only a local
+configuration tool.
 
 ```sh
-uv run python deploy/transfer.py snapshot .local/render-cutover
+brew install railway
+railway --version
+railway login
+npm ci --prefix .railway --ignore-scripts
+npm --prefix .railway run check
 ```
 
-The helper refuses if the usual app or Hermes ports remain open. It creates a PostgreSQL
-custom-format dump and a portable archive of the private Hermes home. It excludes provider
-`.env`, logs, lock/PID/socket files and symlinks; provider credentials are supplied separately.
-It includes native memory, sessions, learned skills and cron state. The source home and local
-database remain intact. The destination must be new; use a different directory for a repeat.
-If running services on custom ports, explicitly stop them too before snapshotting.
-
-Do not restart the local scheduler once the hosted scheduler is enabled. If there is a gap
-between the snapshot and hosted startup, due reminders can be delivered late after cutover.
-
-## 5. Transfer and restore privately
-
-Add your existing SSH **public** key to Render Account Settings. Use **Connect > SSH** on each
-service to obtain its service address. The images include the directory/account setup Render
-requires. Connect to the actual running setup instance, not an ephemeral shell, because the
-persistent home is only available on the actual instance.
-
-Using the SSH addresses shown by Render, stream the two files from your local terminal.
-Replace the uppercase placeholders; do not include secret values in these commands:
+Create an **empty** Railway project named `mental-loader` in that personal workspace, then
+link this checkout and choose its production environment:
 
 ```sh
-ssh WEB_SERVICE@ssh.oregon.render.com 'umask 077; cat > /tmp/database.dump' < .local/render-cutover/database.dump
-ssh HERMES_SERVICE@ssh.oregon.render.com 'umask 077; cat > /tmp/hermes-home.tar.gz' < .local/render-cutover/hermes-home.tar.gz
+railway link
 ```
 
-In the **web service** shell:
+Do not use the old Render Blueprint. Render configuration remains in `render.yaml` and
+[archived instructions](deployment-render.md) as an alternative, not the selected deployment.
+
+## 3. Prepare private inputs
+
+Inputs are already prepared locally in `.local/railway-inputs/shared.env`. To prepare a new
+initial set on a fresh checkout:
 
 ```sh
-cd /app
-python deploy/transfer.py restore-db /tmp/database.dump
+uv run python deploy/transfer.py export-env .local/railway-inputs --platform railway
 ```
 
-In the **Hermes service** shell:
+The helper refuses to overwrite the file. It preserves the current VAPID identity and app
+encryption key, and creates separate random Hermes API/tool credentials. A bootstrap app key
+is kept privately in `.local/deployment-app-secret.key` when the application has no key yet.
+Do not regenerate credentials for a running deployment; preserve the existing input file.
+The obsolete `.local/render-inputs` and `.local/render-phase2-inputs` files are not the
+Railway shared-variable file.
+
+In the Railway project's **production environment**, create **Shared Variables** from the
+private `shared.env` file (using the raw `.env` editor where available). Do not paste keys
+into chat, source files or terminal command arguments. Import `.env` syntax as a file, or
+copy values without surrounding quotes when entering fields individually.
+
+Important initial values:
+
+- `WEB_READY=false`
+- `HERMES_READY=false`
+- `WEB_ORIGIN=https://configure-after-first-deploy.invalid`
+
+The remaining values include the household ID, OpenRouter key, VAPID identity, app encryption
+key and separate agent credentials. Neither shared readiness flag should be true yet.
+Shared variables persist in Railway; the infrastructure definition references them without
+embedding secrets in source or resetting them on subsequent applies.
+
+## 4. Review and apply the infrastructure definition
+
+`.railway/railway.ts` uses the current Railway TypeScript IaC SDK. It is not the deprecated
+`railway.json`/`railway.toml` configuration format. The SDK is pinned in `.railway/package-lock.json`.
 
 ```sh
-cd /app
-python deploy/transfer.py restore-home /tmp/hermes-home.tar.gz
+railway config plan
+railway config apply
 ```
 
-After database restore, create the personal owner account **in the web service shell** if
-the restored household has not already been enrolled. Substitute the household ID from the
-private inputs (not the old household login code):
+Review the plan before confirming. A fresh environment should create:
+
+| Resource | Configuration |
+| --- | --- |
+| Web | Existing app image, one replica, 512 MiB maximum RAM, 0.5 CPU limit |
+| Hermes | Native runtime image, one replica, 512 MiB maximum RAM, 0.5 CPU limit |
+| Postgres | PostgreSQL 17 product, 256 MiB maximum RAM, 0.5 CPU limit |
+| web-state | 1 GB volume mounted at `/data` for persistent app key/operator files |
+| hermes-state | 1 GB volume mounted at `/data` for native memory, sessions, skills and scheduler |
+
+Railway's database product provisions its own data volume. Check that volume in the plan
+and dashboard. All resources use the same US West region. The configuration disables sleeping
+and public database/TCP exposure. Only Web will receive a generated public HTTPS domain.
+Both app services reference `lauren-mulholland/mental_loader`, branch `main`, with separate
+Dockerfiles. In Railway, connect the personal GitHub account/app and grant access to this
+repository before applying. The configuration file itself does not grant repository access. Do not apply this full-project file to an
+unrelated populated environment: omitted resources are treated as removals by Railway IaC.
+
+The live Railway plan/provisioning has not been run in this session. Local type/graph checks
+cannot verify account access, product availability or provider-side deployment behaviour.
+
+## 5. Connect GitHub and build in setup mode
+
+The latest Railway configuration changes are initially uncommitted. Review, commit and push
+them to GitHub main yourself when ready; the assistant must ask before any remote push.
+Do not include `.env`, `.local`, input files or node_modules (all ignored).
+
+After repository access is granted and `railway config apply` creates the services, Railway
+can build **Web** and **Hermes** from that repository. Verify both services show `main` under
+Settings > Source and the correct Dockerfile under Build:
+
+- Web: `deploy/Dockerfile.web`
+- Hermes: `deploy/Dockerfile.hermes`
+
+Check that each service's GitHub autodeploy setting is enabled if you want future main
+pushes to deploy app changes. Use Deploy Latest Commit for the first build if needed.
+The IaC definition must still be applied with `railway config plan` / `railway config apply`
+when infrastructure settings change; Railway does not automatically apply `.railway/` on
+source pushes. A later source-only push can rebuild both services. No infrastructure-apply
+GitHub Action is installed by this change.
+
+Both services start a small setup server while their readiness flags are false. The app
+returns HTTP 503 to normal requests and 200 with `setup: true, ready: false` at `/healthz`.
+No app worker, model inference or native reminder scheduler runs in setup mode. Provisioned
+services still incur usage charges, subject to the workspace cap.
+
+For **Web only**, use Railway **Settings > Networking > Generate Domain**, target port
+**10000**. Update the shared `WEB_ORIGIN` to that exact `https://…up.railway.app` origin,
+without a path. Apply the variable change while both readiness flags are still false.
+Do not generate public domains or TCP proxies for Hermes or Postgres.
+
+## 6. Take a stopped-service snapshot
+
+Stop the local app/Hermes (`make dev`, Ctrl+C) but leave Docker/PostgreSQL running. Then:
 
 ```sh
-python -m mental_loader.cli migrate
-python -m mental_loader.cli create-account --household-id HOUSEHOLD_UUID --name 'Lauren' --role owner --output /data/owner.json
+uv run python deploy/transfer.py snapshot .local/railway-cutover
 ```
 
-Save the personal/recovery credentials privately on your laptop using SSH redirection:
+This creates `database.dump` and `hermes-home.tar.gz` in a new private directory. It leaves
+the original database/home intact and refuses if the default app/Hermes ports remain open.
+Stop any custom-port services explicitly too. The home archive preserves memory, sessions,
+learned skills and scheduler state; deployment secrets are provided separately.
+Do not run local and hosted schedulers for the same active household after cutover.
+
+## 7. Transfer and restore into the running setup containers
+
+Use the current CLI's non-PTY piped SSH input:
 
 ```sh
-(umask 077; ssh WEB_SERVICE@ssh.oregon.render.com 'cat /data/owner.json' > .local/render-owner.json)
+railway ssh --service Web -- sh -c 'umask 077; cat > /tmp/database.dump' < .local/railway-cutover/database.dump
+railway ssh --service Hermes -- sh -c 'umask 077; cat > /tmp/hermes-home.tar.gz' < .local/railway-cutover/hermes-home.tar.gz
+railway ssh --service Web -- python /app/deploy/transfer.py restore-db /tmp/database.dump
+railway ssh --service Hermes -- python /app/deploy/transfer.py restore-home /tmp/hermes-home.tar.gz
 ```
 
-Use that personal access code for browser login; the shared household code is rejected on
-Render. If accounts already exist, preserve them or use the documented reset-account command
-for the intended account; do not silently create a second owner. No local personal database
-or original Hermes home is enrolled or changed by preparing deployment files.
+The CLI must be linked to the correct project/environment. File transfer also supports SCP
+or Railway's volume browser if needed. Use the actual running containers, not a fresh build
+container. Restore refuses an already populated target and runs while processing is disabled.
+Do not redeploy between uploading a `/tmp` archive and restoring it.
 
-Database restore requires an empty public schema and runs in a single transaction; it refuses
-to replace an existing database. Home restore requires an empty target and rejects absolute
-paths, parent traversal, links and special files. Neither command enables scheduling or the
-app worker. Uploaded `/tmp` archives disappear on redeploy; keep the private local snapshot.
-
-## 6. Enable and verify
-
-1. Confirm local app/Hermes remain stopped, both restores succeeded, and Hermes has the real
-   `ML_BACKEND_URL` configured.
-2. Set `DEPLOYMENT_READY=true` on **web**, then save and deploy. Its health check now queries
-   PostgreSQL. Sign in with the personal account and check existing chats/tasks and birthdays.
-3. Set `DEPLOYMENT_READY=true` on **Hermes**, then save and deploy. Startup uses the restored
-   home, updates the reminder job's working directory and preserves its identity; it refuses
-   conflicting or duplicate owned reminder jobs. Never run a second gateway against that disk.
-4. Check one normal chat and household tool call. This uses provider credits; record usage.
-5. Open the HTTPS app on iPhone, add to Home Screen, sign in, enable notifications and save a
-   one-minute test reminder. Close the app, lock the phone and confirm delivery/navigation.
-   The old temporary-tunnel shortcut cannot serve the new origin.
-6. Restart/redeploy and confirm saved chat, native memory and the single reminder job survive.
-   Check overdue delivery recovery and absence of an extra reminder in the tested scenario.
-
-Changing `PUBLIC_ORIGIN` manually is only needed if introducing a custom domain; otherwise
-startup uses `RENDER_EXTERNAL_URL`. Keep VAPID keys unchanged. Phase 2 adds account-bound Google read-only web OAuth, encrypted connections and disconnect.
-It is disabled until you add the web OAuth client as Render secret file `google-web-client.json`
-and register the exact HTTPS callback `/api/integrations/google/callback` with Google. This is
-optional for initial deployment. New consent on the combined hosted build is unverified;
-automatic sync and selected-event birthday import are still deferred. AnyList is also deferred.
-
-## Backups and rollback
-
-Enable/check the database backup retention in Render and confirm disk snapshots. A disk
-snapshot is not evidence of successful whole-app restoration. Take a stopped-service native
-home archive and database dump for coordinated backups, and restore them into isolated
-services with `DEPLOYMENT_READY=false` before claiming recovery is demonstrated. Setup mode
-can bind and pass its health check but is deliberately unavailable to users.
-
-For rollback, set hosted Hermes and web to `DEPLOYMENT_READY=false` and deploy both before
-restarting local services. If the hosted app accepted new writes, export/reconcile those
-first; the old local snapshot will not contain them. Preserve the local snapshot until the
-hosted system and restore procedure have been checked. Do not enable two schedulers against
-the same household. No automated backup schedule or restore drill has yet been established
-on Render by this change.
-
-This is now a personal-account pilot with six ordered migrations, membership/privacy checks,
-encrypted connection storage/backups and leased workers. The Render entrypoint enforces
-`HOSTED_MODE=true`, `ALLOW_LEGACY_LOGIN=false` and `PAAS_PERSONAL_RUNTIME=true`. The last flag is
-an explicit single-household route: only shared chats for `HERMES_HOUSEHOLD_ID` can use the
-private service. It is never a fallback for private chats or another household. Native tool
-authentication uses the separate generated credential, not the old shared login code.
-
-Phase 2's Docker-inspected, per-scope runtime registration remains available on Docker hosts.
-Render cannot run that attestation from the web app; this personal route does not pretend to
-provide those sandbox guarantees. Private-chat AI requires a separately registered scoped
-runtime and is unavailable on this one-runtime Render layout. Do not invite unrelated
-households on the strength of the personal PaaS route. Continue migrations for onboarding.
-
-The operator-reviewed local backup helper now supports birthday date fields. Existing native
-memory, sessions and learned skills stay in Hermes; accounts and birthdays do not create a
-second general-purpose memory or scheduling service.
-
-## Local verification
+If the household has no personal owner account yet, substitute its ID from the shared inputs:
 
 ```sh
-docker build --platform linux/amd64 -f deploy/Dockerfile.web -t mental-loader-web:render .
-docker build --platform linux/amd64 -f deploy/Dockerfile.hermes -t mental-loader-hermes:render .
-uv run pytest -q
+railway ssh --service Web -- python -m mental_loader.cli migrate
+railway ssh --service Web -- python -m mental_loader.cli create-account --household-id HOUSEHOLD_UUID --name Lauren --role owner --output /data/owner.json
+(umask 077; railway ssh --service Web -- cat /data/owner.json > .local/railway-owner.json)
+```
+
+Keep that personal/recovery credential file private. Hosted browser login rejects the old
+household access code. Preserve existing accounts instead of creating a duplicate owner;
+operator `reset-account` is available if recovery is needed.
+
+## 8. Enable and verify
+
+1. Confirm the US$10 workspace hard cap is still active, the real `WEB_ORIGIN` is set,
+   both restores succeeded, and local app/Hermes remain stopped.
+2. Change shared `WEB_READY` to **true**, apply/deploy Web, and sign in with the personal code.
+   Confirm your saved history, tasks and birthday records.
+3. Change shared `HERMES_READY` to **true**, apply/deploy Hermes. Startup preserves native
+   state, refreshes the household plugin and requires exactly one owned reminder cron job.
+4. Test a normal chat and one household tool. This uses OpenRouter credits, outside Railway's
+   cap. Then test a one-minute reminder with the laptop off.
+5. On iPhone, install the new HTTPS URL to Home Screen, sign in and enable notifications.
+   Confirm lock-screen delivery and navigation. Old Render/tunnel installations do not move.
+6. Restart/redeploy to confirm state persistence and inspect Railway Usage for actual costs.
+   A 512 MiB container passed local startup/restart checks; model/delegation peaks still need
+   measurement in real use. The spend cap intentionally allows shutdown instead of overruns.
+
+If Railway variables change, apply staged changes/deploy the affected service. Do not raise
+caps or resource limits automatically to hide a failure. The user accepts shutdown; discuss
+a new budget before raising the US$10 hard limit.
+
+## Scope, optional integrations and backups
+
+The explicit PaaS route serves only the configured household's shared chats. Private-chat AI
+needs separately provisioned scoped runtimes; it never falls back to this household service.
+Accounts, privacy rules, migrations and encrypted backups remain unchanged. No Docker socket
+is mounted into the public app. This is not a verified multi-household hosting platform.
+
+Google web OAuth is optional. Later, transfer its client file privately to the Web volume,
+set `GOOGLE_WEB_CLIENT_PATH` to that file and register the exact HTTPS callback
+`/api/integrations/google/callback` with Google. Read-only connection code exists; live hosted
+consent, automatic sync and selected-event birthday import are not established by deployment.
+AnyList remains deferred.
+
+Preserve the app encryption key separately from encrypted backups. Use the existing operator
+backup/restore tools with stopped native writers and a fresh test destination to verify
+recovery. Setting a cap is not a backup policy. No live Railway backup/restore drill or real
+phone test has been performed by preparing these files. To roll back to the laptop, first
+set both hosted readiness flags false and deploy/stop the services, then reconcile any hosted
+writes before starting the local scheduler. Keep the original snapshot.
+
+## Cost evidence and local checks
+
+Synthetic local measurements on 26 November: Web approximately 115 MiB, PostgreSQL 49 MiB,
+Hermes 233 MiB; the constrained Hermes peak was approximately 247 MiB. These are short local
+samples without inference, not a guaranteed monthly bill or full model/delegation load test.
+US$5–10/month is a target, with shutdown at the separately configured US$10 hard cap.
+
+```sh
+npm --prefix .railway run check
 uv run ruff check .
-uv run python deploy/smoke.py
+uv run pytest -q
+docker build --platform linux/amd64 -f deploy/Dockerfile.web -t mental-loader-web:railway .
+docker build --platform linux/amd64 -f deploy/Dockerfile.hermes -t mental-loader-hermes:railway .
+uv run python deploy/smoke.py --platform railway --measure
 ```
 
-The smoke check uses disposable containers and synthetic state, tests setup/restore/restart
-and real Hermes gateway startup, and removes its containers/network afterwards. It makes no
-model requests and does not stop or modify the personal local services. Hosted phone delivery,
-real state migration and Render backup restoration still require verification after deployment.
+The smoke test uses disposable PostgreSQL and synthetic credentials/state, applies the same
+memory/CPU limits, verifies restore, personal login, native restart/state and a single no-agent
+job, then removes its containers/network/volume. It makes no model calls or cloud changes.
 
-## Provider references
-
-Checked 25 November 2026:
-
-- [Blueprint setup](https://render.com/docs/infrastructure-as-code)
-- [Blueprint specification](https://render.com/docs/blueprint-spec)
-- [Private services](https://render.com/docs/private-services)
-- [Persistent disks and limitations](https://render.com/docs/disks)
-- [SSH and Docker setup](https://render.com/docs/ssh)
-- [Current pricing](https://render.com/pricing)
+Provider references checked 26 November 2026: [IaC](https://docs.railway.com/infrastructure-as-code),
+[reference](https://docs.railway.com/infrastructure-as-code/reference),
+[usage limits](https://docs.railway.com/cli/usage),
+[cost controls](https://docs.railway.com/pricing/cost-control),
+[SSH transfers](https://docs.railway.com/cli/ssh),
+[pricing](https://docs.railway.com/pricing/plans).

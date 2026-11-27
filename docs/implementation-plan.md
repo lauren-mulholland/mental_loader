@@ -2,6 +2,15 @@
 
 Agreed baseline: 26 October 2026; status updated 4 November 2026. Build the smallest useful household workflow first, learn from real use, and preserve boundaries that permit a later agent-framework change. For the current working state and ordered next actions, start with [development handoff](handoff.md#next-steps-in-order).
 
+## Hosting update — 26 November 2026
+
+Railway is now the default host, superseding the Render choice below. Target US$5–10/month
+with an explicitly requested US$10 Compute hard cap and accepted shutdown. Configure that
+workspace limit before provisioning. Follow [deployment](deployment.md), restore state and
+personal accounts before enabling processing, and connect the app services to GitHub main.
+The initial IaC apply remains necessary; app pushes do not apply infrastructure settings.
+No Git push is authorized. Onboarding remains the next product feature after deployment.
+
 ## Current delivery order (25 November 2026)
 
 The user resumed work and accepted Render for a private personal deployment. This supersedes

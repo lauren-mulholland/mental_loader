@@ -1,5 +1,6 @@
 """Exercise deployment images with disposable data. No provider requests or personal state."""
 
+import argparse
 import base64
 import io
 import json
@@ -29,6 +30,15 @@ def wait_for(command, attempts=45):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--platform", choices=("railway", "render"), default="railway")
+    parser.add_argument("--measure", action="store_true")
+    args = parser.parse_args()
+    web_image = f"mental-loader-web:{args.platform}"
+    hermes_image = f"mental-loader-hermes:{args.platform}"
+    origin = "https://fixture.up.railway.app" if args.platform == "railway" else (
+        "https://fixture.onrender.com"
+    )
     prefix = "ml-deploy-check-" + uuid4().hex[:8]
     db, web, hermes = (prefix + suffix for suffix in ("-db", "-web", "-hermes"))
     containers = []
@@ -38,6 +48,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="ml-deploy-check-") as temp:
             work = Path(temp)
             docker("run", "-d", "--name", db, "--network", prefix,
+                   "--memory", "256m", "--cpus", "0.5",
                    "-e", "POSTGRES_PASSWORD=fixture-only", "postgres:17-alpine")
             containers.append(db)
             wait_for(lambda: docker("exec", db, "pg_isready", "-U", "postgres"))
@@ -45,7 +56,7 @@ def main():
                 docker("exec", db, "createdb", "-U", "postgres", name)
             source_url = f"postgresql://postgres:fixture-only@{db}:5432/source"
             docker("run", "--rm", "--platform", "linux/amd64", "--network", prefix,
-                   "-e", f"DATABASE_URL={source_url}", "mental-loader-web:render", "python", "-c",
+                   "-e", f"DATABASE_URL={source_url}", web_image, "python", "-c",
                    "from mental_loader.storage import database, Household, User, Membership; "
                    "from mental_loader.storage import digest; "
                    "from mental_loader.config import Settings; "
@@ -67,8 +78,6 @@ def main():
                                         serialization.NoEncryption())
             env = {
                 "DATABASE_URL": f"postgresql://postgres:fixture-only@{db}:5432/target",
-                "RENDER_EXTERNAL_URL": "https://fixture.onrender.com",
-                "HERMES_HOSTPORT": f"{hermes}:8642",
                 "HERMES_API_KEY": "k" * 43,
                 "HERMES_HOUSEHOLD_ID": "fixture-household",
                 "HERMES_TOOL_TOKEN": "h" * 43,
@@ -78,14 +87,21 @@ def main():
                 "VAPID_SUBJECT": "mailto:fixture@example.com",
                 "AI_ENABLED": "false",
             }
+            if args.platform == "railway":
+                env["RAILWAY_PUBLIC_DOMAIN"] = "fixture.up.railway.app"
+                env["HERMES_HOST"] = hermes
+            else:
+                env["RENDER_EXTERNAL_URL"] = origin
+                env["HERMES_HOSTPORT"] = f"{hermes}:8642"
             env_path = work / "web.env"
             env_path.write_text("".join(f"{key}={value}\n" for key, value in env.items()))
             os.chmod(env_path, 0o600)
 
             def run_web(ready):
                 docker("run", "-d", "--platform", "linux/amd64", "--name", web,
+                       "--memory", "512m", "--cpus", "0.5",
                        "--network", prefix, "--env-file", str(env_path),
-                       "-e", f"DEPLOYMENT_READY={str(ready).lower()}", "mental-loader-web:render")
+                       "-e", f"DEPLOYMENT_READY={str(ready).lower()}", web_image)
 
             def web_health():
                 return json.loads(docker("exec", web, "python", "-c",
@@ -112,7 +128,7 @@ def main():
             docker("exec", web, "python", "-c",
                    "import json,urllib.request; request=urllib.request.Request("
                    "'http://localhost:10000/api/login',data=json.dumps({'access_code':'p'*43})"
-                   ".encode(),headers={'Origin':'https://fixture.onrender.com',"
+                   f".encode(),headers={{'Origin':{origin!r},"
                    "'Content-Type':'application/json'}); "
                    "assert urllib.request.urlopen(request).status==200")
             docker("restart", web)
@@ -145,10 +161,11 @@ def main():
                 stream.write("ML_BACKEND_URL=https://127.0.0.1:1\n")
             def run_hermes(ready):
                 docker("run", "-d", "--platform", "linux/amd64", "--name", hermes,
+                       "--memory", "512m", "--cpus", "0.5",
                        "--network", prefix, "--env-file", str(hermes_env),
                        "-v", prefix + "-home:/data",
                        "-e", f"DEPLOYMENT_READY={str(ready).lower()}",
-                       "mental-loader-hermes:render")
+                       hermes_image)
 
             run_hermes(False)
             containers.append(hermes)
@@ -177,6 +194,11 @@ def main():
                    "assert len(jobs)==1 and jobs[0]['no_agent']; "
                    "assert jobs[0]['workdir']=='/data/workspace'")
             print("PASS: Hermes persistent restore, gateway restart, API and single no-agent job.")
+            if args.measure:
+                for role, container in (("postgres", db), ("web", web), ("hermes", hermes)):
+                    usage = docker("stats", "--no-stream", "--format", "{{.MemUsage}}",
+                                   container).decode().strip()
+                    print(f"MEASURED {role}: {usage}", flush=True)
     except Exception:
         # Synthetic logs only; avoid real household state or provider credentials.
         if hermes in containers:

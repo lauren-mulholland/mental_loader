@@ -1,0 +1,17 @@
+{
+  "name": "mental-loader-railway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && node --experimental-strip-types check.mjs"
+  },
+  "dependencies": {
+    "railway": "3.12.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

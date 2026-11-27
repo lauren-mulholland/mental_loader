@@ -28,6 +28,16 @@ Agreed baseline: 26 October 2026; updated 4 November 2026. Accepted choices guid
 | Reduce idle frontend polling | Agreed next direction; pending implementation | Poll quickly while a reply is pending, around every 30 seconds when idle, refresh after actions/on tab return and pause hidden tabs. Preserve the separate native reminder schedule. SSE can wait. |
 | Track narrow upstream compatibility fixes | Implemented workaround | Keep the pinned-runtime encrypted-reasoning recovery patch in version control, apply it idempotently and refuse conflicts. Preserve native runtime ownership and review whether the patch is still needed on upgrade. Live recovery remains unconfirmed. |
 
+## Hosting budget — 26 November 2026
+
+Railway Hobby replaces Render as the selected host to target US$5–10/month before model
+usage/tax. The user explicitly accepts service shutdown at a US$10 Compute hard limit.
+The workspace cap must be set and verified outside the repository before provisioning;
+local memory/CPU limits do not enforce a dollar ceiling. Keep sleeping disabled so reminders
+work without the laptop until the cap stops the services. Both app services now reference GitHub main at the user's preference; connect the GitHub app
+and apply IaC once before relying on source autodeploys. Do not push without permission. Use the supported Railway
+TypeScript IaC format and preserve the same PostgreSQL/native-Hermes ownership split.
+
 ## Consolidation decisions — 26 November 2026
 
 Merged Phase 2 (`ffc97d6`) into local main and retained the existing Render packaging,
