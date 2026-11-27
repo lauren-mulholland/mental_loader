@@ -1,0 +1,20 @@
+# Allow only deployment inputs. Never send local state or credentials to a builder.
+**
+!pyproject.toml
+!uv.lock
+!hermes-runtime.ref
+!hermes-validation-requirements.txt
+!src/
+!src/**
+!scripts/
+!scripts/**
+!hermes_plugin/
+!hermes_plugin/**
+!skills/
+!skills/**
+!patches/
+!patches/**
+!deploy/
+!deploy/**
+**/__pycache__/
+**/*.pyc

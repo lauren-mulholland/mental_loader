@@ -1,6 +1,6 @@
 # Product requirements
 
-Agreed baseline: 26 October 2026. Implementation status lives in [feasibility.md](feasibility.md).
+Agreed baseline: 26 October 2026; product direction updated 25 November 2026. Implementation status lives in [feasibility.md](feasibility.md).
 
 ## Purpose and users
 
@@ -17,6 +17,43 @@ This is also a learning project: the first agent runtime is Hermes so its capabi
 costs and limitations can be understood through real household use.
 
 Use Hermes' native scheduling, memory, sessions, skills and delegation as part of the POC. Keep household tools in clean functions for possible future migration; do not avoid the native runtime features merely to make that hypothetical migration easier.
+
+## Product direction: a household app with built-in agent support
+
+The primary product is a household management application with an embedded agent, rather
+than a chat-only assistant. Over time, provide category views or tabs for Events, Meals,
+Shopping, Stock/Supplies and other household responsibilities. Keep the first version
+minimal; this is a product direction, not a requirement to build all tabs before hosting.
+
+Users must be able to view, add, edit and complete supported records directly in the UI
+without sending a chat message. Examples include adding a shopping-list item, updating
+reported stock, reviewing events and editing a meal plan. Ordinary record operations use
+deterministic application code and do not require a model call. Chat and direct UI actions
+operate on the same authoritative household records, so a change made through either
+surface is visible through the other.
+
+Use the agent for work involving judgement, synthesis or uncertain inputs: proposing meals,
+suggesting gifts, interpreting natural-language requests and identifying useful next steps.
+Preserve proactive help and existing Hermes runtime capabilities. This direction does not
+require replacing Hermes or moving its scheduler or native memory into custom services.
+
+## Adaptive onboarding (fast follow after personal deployment)
+
+Start by asking what the user wants the app to manage. Offer relevant categories and allow
+multiple selections, skipping, resuming and adding categories later. Ask only follow-up
+questions appropriate to the selected areas. Do not require a complete household inventory
+before delivering a useful result.
+
+For meals, collect who is eating, dietary requirements/allergies, favourite meals or foods,
+usual staples and realistic cooking time. Ask about budget, equipment and shopping routines
+when needed. Distinguish usual staples from timestamped confirmation of current stock.
+Offer an initial meal suggestion or small plan after the essential questions.
+
+Keep selected categories and onboarding progress in explicit household-scoped application
+records. Stable preferences continue to use Hermes native memory; transactional lists,
+stock and plans belong in structured records. Provide a way to inspect and correct answers,
+and ensure subsequent suggestions use corrections rather than an obsolete memory copy.
+These screens and records are planned, not implemented in the current spike.
 
 ## Intended capabilities
 
@@ -38,7 +75,8 @@ choosing, ordering and wrapping a gift, each with its own deadline and completio
 
 - One responsive web application must work on laptops and phones. A PWA provides optional
   Home Screen installation and push; App Store distribution and native app reviews are outside scope.
-- Chat is the main input, supported by an upcoming-tasks view and simple settings. Keep
+- The current spike has chat, upcoming tasks and simple settings. The target app adds
+  direct category views alongside chat; users choose the appropriate interaction. Keep
   frontend overhead low. WhatsApp integration is not required.
 - A notification should explain why it appeared and offer a small next action. Completed
   or cancelled tasks should stop generating new reminders.

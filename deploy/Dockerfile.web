@@ -1,0 +1,15 @@
+FROM ghcr.io/astral-sh/uv:0.11.21 AS uv
+FROM python:3.14.6-slim-trixie
+COPY --from=uv /uv /usr/local/bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client-17 \
+    && rm -rf /var/lib/apt/lists/*
+# Render injects its SSH access; '*' disables password login without locking the account.
+RUN mkdir -p /root/.ssh && chmod 0700 /root/.ssh && usermod -p '*' root
+ENV UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY src ./src
+RUN uv sync --locked --no-dev
+COPY deploy ./deploy
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["python", "deploy/start.py", "web"]

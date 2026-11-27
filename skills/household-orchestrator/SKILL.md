@@ -23,6 +23,12 @@ Use Hermes' native delegate_task to spawn specialists. Load household-meals and 
 
 Dependent work is sequential. Do not send meals and supplies in the same parallel batch when one needs the other's result. Allow at most one meal revision in this experiment; ask the user if it still cannot be resolved. Additional provider calls cost money even when the top-level request count is one.
 
+## Native output validation
+
+Use the current task-array API: each task must have `goal`, `context` and an `output_schema` object containing the parsed reference schema. For example, `{"tasks":[{"goal":"Assess stock","context":"Supplied facts and instructions","output_schema":{"type":"object"}}]}` shows the argument placement; replace the example schema with the complete specialist schema. A schema copied into `context` does not enable native validation. The supplies and meals calls each contain one task and use their own full schema.
+
+Inspect the returned result's `status`, `exit_reason` and `schema_valid`. Only accept completed results with `schema_valid: true`; a missing validation flag does not establish that native validation ran. Pass the complete validated supplies result into the meals task's context. Review the proposed meals separately for dietary constraints, preparation time, budget and uncertain ingredients: schema validity alone does not establish these facts. In the final user response, state relevant estimates and unchecked stock explicitly rather than implying the proposal can be cooked entirely from confirmed supplies.
+
 ## Ownership
 
 Meals owns meal proposals and ingredient requirements. Supplies owns stock assessment and grocery proposals. The orchestrator owns the handoff, unresolved conflicts and the user conversation. Durable household records, once implemented, must identify the owning domain and link derived grocery items to the accepted meal-plan version.

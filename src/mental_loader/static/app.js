@@ -4,6 +4,10 @@ let me = null;
 let poll = null;
 let pendingRequest = null;
 let refreshing = false;
+let refreshAgain = false;
+let activeRuns = false;
+const ACTIVE_POLL_MS = 2500;
+const IDLE_POLL_MS = 30000;
 let lastMessageSignature = '';
 let noticeTimer;
 
@@ -33,10 +37,12 @@ async function api(path, options = {}) {
 }
 
 function signedOut() {
-  clearInterval(poll);
+  clearTimeout(poll);
   poll = null;
   conversation = null;
   pendingRequest = null;
+  activeRuns = false;
+  refreshAgain = false;
   lastMessageSignature = '';
   $('#messages').replaceChildren();
   $('#tasks').replaceChildren();
@@ -70,59 +76,81 @@ async function loadConversations(preferred) {
 }
 
 async function refresh() {
-  if (!conversation || refreshing) return;
+  clearTimeout(poll);
+  poll = null;
+  if (!conversation || document.hidden || $('#workspace').hidden) return;
+  // Actions and conversation switches during a fetch must get a fresh read afterwards.
+  if (refreshing) { refreshAgain = true; return; }
   refreshing = true;
-  const selectedConversation = conversation;
   try {
-    const [data, tasks] = await Promise.all([
-      api(`/api/conversations/${selectedConversation}/messages`), api('/api/tasks'),
-    ]);
-    if (conversation !== selectedConversation || $('#workspace').hidden) return;
-    const signature = JSON.stringify(data.messages);
-    if (signature !== lastMessageSignature) {
-      lastMessageSignature = signature;
-      const messages = $('#messages');
-      const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100;
-      messages.replaceChildren();
-      if (!data.messages.length) {
-        const welcome = textElement('div', '', 'welcome');
-        welcome.append(textElement('div', '✧', 'welcome-symbol'),
-          textElement('h2', 'What’s on your mind?'),
-          textElement('p', 'Start small. Save one reminder, close the page, and come back to find it here.'));
-        messages.append(welcome);
-      }
-      data.messages.forEach((message) => {
-        const bubble = textElement('div', '', `message ${message.role}`);
-        bubble.append(textElement('span', message.role === 'user' ? 'You' : 'Mental Loader', 'message-label'),
-          document.createTextNode(message.content));
-        messages.append(bubble);
-      });
-      if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
+    do {
+      refreshAgain = false;
+      await refreshOnce();
+    } while (refreshAgain && conversation && !document.hidden && !$('#workspace').hidden);
+  } finally {
+    refreshing = false;
+    if (conversation && !document.hidden && !$('#workspace').hidden) {
+      poll = setTimeout(() => refresh().catch((error) => notice(error.message)),
+        activeRuns ? ACTIVE_POLL_MS : IDLE_POLL_MS);
     }
-    $('#run-status').textContent = data.active_runs.length ? 'Working… You can close this page and return later.' : '';
-    const open = tasks.filter((task) => task.status === 'open');
-    $('#task-count').textContent = open.length;
-    $('#tasks').replaceChildren();
-    if (!open.length) $('#tasks').append(textElement('p', 'Nothing to carry here yet.', 'empty'));
-    open.forEach((task) => {
-      const item = textElement('div', '', 'task');
-      const complete = textElement('button', '✓');
-      complete.setAttribute('aria-label', `Complete ${task.title}`);
-      complete.onclick = async () => {
-        complete.disabled = true;
-        try { await api(`/api/tasks/${task.id}/complete`, { method: 'POST' }); await refresh(); }
-        catch (error) { notice(error.message); complete.disabled = false; }
-      };
-      const description = document.createElement('div');
-      description.append(textElement('strong', task.title), textElement('small',
-        new Date(task.due_at).toLocaleString([], { timeZone: me.timezone, dateStyle: 'medium', timeStyle: 'short' })));
-      const delivery = task.push_status.length ? `Push: ${task.push_status.join(', ')}`
-        : task.notified_at ? 'Added to chat · no subscribed devices at due time' : 'Reminder scheduled';
-      description.append(textElement('small', delivery));
-      item.append(complete, description);
-      $('#tasks').append(item);
+  }
+}
+
+async function refreshOnce() {
+  const selectedConversation = conversation;
+  // Wait for both reads even if one fails, so retries cannot overlap a slow sibling.
+  const results = await Promise.allSettled([
+    api(`/api/conversations/${selectedConversation}/messages`), api('/api/tasks'),
+  ]);
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure) throw failure.reason;
+  const [data, tasks] = results.map((result) => result.value);
+  if (conversation !== selectedConversation || $('#workspace').hidden) return;
+  const signature = JSON.stringify(data.messages);
+  if (signature !== lastMessageSignature) {
+    lastMessageSignature = signature;
+    const messages = $('#messages');
+    const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100;
+    messages.replaceChildren();
+    if (!data.messages.length) {
+      const welcome = textElement('div', '', 'welcome');
+      welcome.append(textElement('div', '✧', 'welcome-symbol'),
+        textElement('h2', 'What’s on your mind?'),
+        textElement('p', 'Start small. Save one reminder, close the page, and come back to find it here.'));
+      messages.append(welcome);
+    }
+    data.messages.forEach((message) => {
+      const bubble = textElement('div', '', `message ${message.role}`);
+      bubble.append(textElement('span', message.role === 'user' ? 'You' : 'Mental Loader', 'message-label'),
+        document.createTextNode(message.content));
+      messages.append(bubble);
     });
-  } finally { refreshing = false; }
+    if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
+  }
+  activeRuns = data.active_runs.length > 0;
+  $('#run-status').textContent = activeRuns ? 'Working… You can close this page and return later.' : '';
+  const open = tasks.filter((task) => task.status === 'open');
+  $('#task-count').textContent = open.length;
+  $('#tasks').replaceChildren();
+  if (!open.length) $('#tasks').append(textElement('p', 'Nothing to carry here yet.', 'empty'));
+  open.forEach((task) => {
+    const item = textElement('div', '', 'task');
+    const complete = textElement('button', '✓');
+    complete.setAttribute('aria-label', `Complete ${task.title}`);
+    complete.onclick = async () => {
+      complete.disabled = true;
+      try { await api(`/api/tasks/${task.id}/complete`, { method: 'POST' }); await refresh(); }
+      catch (error) { notice(error.message); complete.disabled = false; }
+    };
+    const description = document.createElement('div');
+    description.append(textElement('strong', task.title), textElement('small',
+      new Date(task.due_at).toLocaleString([], { timeZone: me.timezone, dateStyle: 'medium', timeStyle: 'short' })));
+    const delivery = task.push_status.length ? `Push: ${task.push_status.join(', ')}`
+      : task.notified_at ? 'Added to chat · no subscribed devices at due time' : 'Reminder scheduled';
+    description.append(textElement('small', delivery));
+    item.append(complete, description);
+    $('#tasks').append(item);
+  });
 }
 
 async function enter() {
@@ -135,9 +163,13 @@ async function enter() {
   await loadConversations(new URLSearchParams(location.search).get('conversation'));
   await refresh();
   $('#send').disabled = false;
-  clearInterval(poll);
-  poll = setInterval(() => { if (!document.hidden) refresh().catch((error) => notice(error.message)); }, 2500);
 }
+
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(poll);
+  poll = null;
+  if (!document.hidden) refresh().catch((error) => notice(error.message));
+});
 
 $('#login-form').onsubmit = async (event) => {
   event.preventDefault();

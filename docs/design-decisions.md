@@ -1,6 +1,6 @@
 # Design decisions
 
-Agreed baseline: 26 October 2026; updated 27 October 2026. Accepted choices guide implementation; provisional choices and unresolved integrations should be revalidated as the POC produces evidence. See [development handoff](handoff.md) for current execution status.
+Agreed baseline: 26 October 2026; updated 4 November 2026. Accepted choices guide implementation; provisional choices and unresolved integrations should be revalidated as the POC produces evidence. See [development handoff](handoff.md) for current execution status.
 
 | Decision | Status | Rationale and consequence |
 | --- | --- | --- |
@@ -12,11 +12,13 @@ Agreed baseline: 26 October 2026; updated 27 October 2026. Accepted choices guid
 | Household is the tenant boundary | Accepted | Support future sharing with friends. Authentication, records, integrations, jobs, memory and notification recipients must all respect household boundaries. |
 | Limit live Hermes to one household initially | Current POC limitation | Application isolation is being tested, but one shared personal Hermes runtime must not serve unrelated household data. Validate runtime isolation before expanding. |
 | Orchestrator plus specialists | Accepted direction | Split gifts, meals, appointments/supplies and home tasks by responsibility. Introduce specialists incrementally and invoke only the necessary ones. |
-| Google Calendar first | Accepted | First calendar feasibility target selected by the user. Start read-only; account authorisation and birthday-calendar coverage still need live validation. |
+| Google Calendar first | Accepted | First calendar feasibility target selected by the user. Personal read-only authorisation and primary-calendar birthday count were verified on 4 November; broader calendar coverage and automatic sync remain future work. |
 | Investigate AnyList | Provisional | Preferred grocery-list integration, but a supported write/sync API has not been established. Keep an internal list/export fallback in scope. |
 | PostgreSQL from the start | Accepted direction | Use the same database family locally and when hosted. Adds Docker setup now, reduces a later persistence migration. |
 | Separate app and Hermes environments | Accepted | Each has an isolated venv and lockfile. Pin the upstream Hermes revision; keep its home and credentials inside ignored local state. |
-| Local first, then PaaS | Accepted direction | Begin on the laptop; eventually operate independently of it. Railway is a suggestion, while provider-specific coupling should remain minimal. |
+| Render for private personal deployment | Accepted 25 November 2026; supersedes Vercel preference | Keep the current FastAPI app, persistent private Hermes service and PostgreSQL on one PaaS. Deploy existing functionality before onboarding; verify costs, state transfer, backups and restart behaviour. |
+| Household app with embedded agent | Accepted 25 November 2026 | Add category views for events, meals, shopping and stock over time. Direct UI actions and agent tools share domain functions and authoritative records. Use the agent for judgement and suggestions; routine CRUD needs no inference. |
+| Adaptive onboarding after deployment | Accepted 25 November 2026 | Ask which areas to manage, then focused category-specific questions. Make progress resumable and answers editable. Start with meals; separate usual staples from confirmed current stock. |
 | Deterministic reminders work with AI off | Accepted | Protect basic usefulness and cost control when provider access fails or request limits are reached. |
 | Use native memory and skills | Accepted | Keep stable household preferences and lessons in the dedicated Hermes home; use native skills for repeatable procedures. Task state and delivery receipts remain structured records. Export/adapt native state later if migration becomes necessary. |
 | Use Hermes cron for reminder timing | Accepted | One native script-only job dispatches due tasks every minute without a model. The PWA push sender remains a custom transport because Hermes does not supply our web-app notification interface. |
@@ -43,7 +45,7 @@ before hiding those details behind the web application.
 - Google account linking for a hosted app and coverage of relevant calendars/birthdays.
 - Quiet hours, digest timing, escalation, notification recipients and ownership defaults.
 - Final hosted identity provider, membership permissions, token encryption and deletion policy.
-- PaaS selection and resource sizing after measuring the local application.
+- Render service sizing, exact monthly cost and durable state transfer/restore. The chosen layout is documented in [deployment](deployment.md); packaging and hosted verification remain to be completed.
 
 Personal hosting was discussed with a planning budget of approximately A$50/month, not a
 guaranteed price or a configured spending cap. Recheck provider prices and measured model

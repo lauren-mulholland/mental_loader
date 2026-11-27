@@ -25,7 +25,7 @@ flowchart TD
 
 | Component | Owns |
 | --- | --- |
-| PWA | Conversation display, message submission, upcoming tasks and notification permission. |
+| PWA | Currently chat, upcoming tasks and notification permission; target category views support direct household record management alongside agent assistance. |
 | Application API | Authentication, access checks, user-visible transcripts, durable request status and household records. |
 | Hermes adapter | Translation between application conversations and Hermes requests; stable conversation identifiers and request identities. |
 | Hermes | Agent conversation, native sessions and recall, curated memory, skills, scheduling and specialist delegation. |
@@ -40,6 +40,20 @@ Required steps must execute in code. An LLM choosing whether to call a determini
 is still a probabilistic decision; a prompt cannot guarantee a required sequence.
 
 Use Hermes' built-in features directly. Portability means keeping our household functions and external integration adapters clean; it does not mean creating custom memory, skill or scheduler systems in anticipation of a future framework.
+
+## Direct UI and agent actions
+
+The 25 November 2026 product direction is an app with built-in agent support. Future Events,
+Meals, Shopping and Stock/Supplies screens call household-scoped application APIs directly.
+Agent tools call the same domain functions and update the same PostgreSQL records. Validation,
+permissions and required state transitions belong in those shared functions, not solely in
+prompts or browser code. Routine list and stock edits must work without inference.
+
+Category selection and resumable onboarding progress will be explicit application state.
+Hermes remains responsible for native preferences/memory, sessions, skills and scheduling;
+structured transactional facts remain in PostgreSQL. Define how profile corrections update
+native memory when implementing editable onboarding answers. These are target boundaries;
+category APIs, onboarding and inventory records are not yet implemented.
 
 ## Agent responsibilities
 
@@ -94,6 +108,8 @@ are not directly portable to another framework.
 
 Profile-scoped `USER.md` and `MEMORY.md` are intentionally used for remembered preferences and lessons. They are bounded curated memory, not an inventory or transactional task database. Hermes loads a snapshot at session start, so use a fresh conversation at natural boundaries and native session search for older context. Future migration will include exporting these files, adapting skills and recreating schedules as needed.
 
+The API adapter uses the same household-and-conversation identifier for the Responses `conversation` field and `X-Hermes-Session-Key`. Both must remain stable within a chat and differ between chats. A household-only session header made new app chats resolve to the existing native transcript, preventing a reliable fresh-session memory check. New chats now get distinct native sessions while retaining profile memory in the household's dedicated Hermes home. Existing saved response chains are preserved; this change does not rewrite historical transcripts or create a tenant security boundary.
+
 Keep domain functions and integration contracts free of Hermes imports. A future SDK-based
 agent should reuse these functions, the database, application API and PWA. Expect to rewrite
 agent definitions, tool registration, context/session integration, delegation and runtime
@@ -105,8 +121,19 @@ The app uses `.venv` and the root lockfile; Hermes uses a separate environment a
 upstream revision under `.local/hermes-runtime`. Its private home is `.local/hermes-home`.
 Do not mix package environments or alter global Hermes settings for this project.
 
-PostgreSQL runs locally in Docker. The spike has one application process with one embedded chat-request worker, plus one dedicated Hermes runtime whose cron scheduler owns reminder timing. Both services must remain running for proactive delivery. It is not safe to scale this topology to multiple workers yet. Later, deploy the application and Hermes runtime with persistent state on a PaaS; the household's Hermes home must also survive redeployment.
+PostgreSQL runs locally in Docker. The spike has one application process with one embedded
+chat-request worker, plus one dedicated Hermes runtime whose cron scheduler owns reminder
+timing. Both services must remain running for proactive delivery. Do not scale to multiple
+web workers or duplicate schedulers with the current recovery and delivery code.
 
-Railway is the current hosting suggestion, not an infrastructure commitment. Preserve
-container-friendly processes, standard PostgreSQL and configurable providers so the app can
-move to another host. Configure backups and test restoration before a hosted friends pilot.
+On 25 November 2026, the user accepted Render for the initial private personal deployment,
+superseding the earlier Vercel preference. Use one public FastAPI web service, one private
+Hermes service with persistent home storage, and managed PostgreSQL in the same region.
+Keep Hermes and database endpoints private. Preserve the existing native memory, sessions,
+learned skills and cron job during transfer; update machine-specific paths and credentials
+without creating a second scheduler against the live household.
+
+Deploy current functionality first, then build adaptive onboarding and category views.
+See [Render deployment](deployment.md) for prerequisites, responsibilities and verification.
+This is not a multi-household launch. Accounts, memberships and runtime isolation remain
+required before inviting other households.

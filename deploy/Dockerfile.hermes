@@ -1,0 +1,28 @@
+FROM ghcr.io/astral-sh/uv:0.11.21 AS uv
+FROM python:3.14.6-slim-bookworm
+COPY --from=uv /uv /usr/local/bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+# Render injects its SSH access; '*' disables password login without locking the account.
+RUN mkdir -p /root/.ssh && chmod 0700 /root/.ssh && usermod -p '*' root
+ENV UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never PYTHONUNBUFFERED=1
+WORKDIR /app
+COPY hermes-runtime.ref hermes-validation-requirements.txt ./
+RUN set -eu; repository="$(sed -n '1p' hermes-runtime.ref)"; \
+    revision="$(sed -n '2p' hermes-runtime.ref)"; \
+    git init .local/hermes-runtime; \
+    git -C .local/hermes-runtime remote add origin "$repository"; \
+    git -C .local/hermes-runtime fetch --depth 1 origin "$revision"; \
+    git -C .local/hermes-runtime checkout --detach FETCH_HEAD; \
+    test "$(git -C .local/hermes-runtime rev-parse HEAD)" = "$revision"
+RUN uv sync --project .local/hermes-runtime --frozen --no-dev --extra messaging \
+    && uv pip install --python .local/hermes-runtime/.venv/bin/python -r hermes-validation-requirements.txt
+COPY scripts ./scripts
+COPY patches ./patches
+COPY skills ./skills
+COPY hermes_plugin ./hermes_plugin
+COPY deploy ./deploy
+RUN .local/hermes-runtime/.venv/bin/python scripts/patch_hermes.py \
+    && .local/hermes-runtime/.venv/bin/python scripts/hermes_schema_smoke.py
+ENV HERMES_HOME=/data/hermes-home HERMES_RUNTIME_DIR=/data/hermes-managed ML_HOSTED_WORKDIR=/data/workspace
+CMD ["python", "deploy/start.py", "hermes"]

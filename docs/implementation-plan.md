@@ -1,14 +1,34 @@
 # Implementation plan
 
-Agreed baseline: 26 October 2026; status updated 27 October 2026. Build the smallest useful household workflow first, learn from real use, and preserve boundaries that permit a later agent-framework change. For the current working state and ordered next actions, start with [development handoff](handoff.md#next-steps-in-order).
+Agreed baseline: 26 October 2026; status updated 4 November 2026. Build the smallest useful household workflow first, learn from real use, and preserve boundaries that permit a later agent-framework change. For the current working state and ordered next actions, start with [development handoff](handoff.md#next-steps-in-order).
+
+## Current delivery order (25 November 2026)
+
+The user resumed work and accepted Render for a private personal deployment. This supersedes
+the previous pause, Vercel preference and the requirement to finish unrelated integration
+experiments before personal hosting. Retain existing evidence and limitations; do not label
+all Phase 1 gates complete merely because the app is hosted.
+
+1. Package and deploy the current app, one dedicated Hermes runtime with persistent storage,
+   and PostgreSQL. Preserve current personal state, configure backups and demonstrate
+   chat/reminders with the laptop off and after a redeploy. See [deployment](deployment.md).
+2. Add adaptive onboarding: select categories, ask focused questions, save/resume progress,
+   review/correct answers and produce a useful first meal proposal.
+3. Add minimal category views incrementally: events, meals, shopping and stock/supplies.
+   Direct list/stock operations use shared domain functions and work without model calls.
+4. Continue capability and integration work based on personal use. Complete sharing
+   foundations before inviting other households.
+
+The app-with-agent direction is specified in [product requirements](product-requirements.md).
+The historical phases below remain a capability roadmap, subordinate to this delivery order.
 
 ## Phase 1 — Technical feasibility
 
 Build and test the responsive local app, saved history, deterministic reminder functions, native Hermes plugin, Hermes API adapter, native memory, skills/session-recall availability, native no-agent scheduling, Google Calendar read probe and Web Push path. Hermes should own runtime services rather than act only as a model endpoint.
 
-Current evidence is recorded in [feasibility.md](feasibility.md). Automated code tests, desktop/mobile browser checks, native Hermes plugin execution, memory persistence across store reloads, direct no-agent execution and actual gateway-driven scheduled dispatch have passed. The user configured OpenRouter and received two live chat responses, then encountered an encrypted-history rejection on the third message. A targeted recovery patch passed offline checks; live confirmation after restart remains pending. Conversational memory/recall, specialist execution, learned skill creation, interrupted-run recovery, Google authorisation and iPhone lock-screen push remain open. Phase 1 is not complete.
+Current evidence is recorded in [feasibility.md](feasibility.md). Automated code tests, desktop/mobile browser checks, native Hermes plugin execution, memory persistence across store reloads, direct no-agent execution and actual gateway-driven scheduled dispatch have passed. The user configured OpenRouter and received two live chat responses, then encountered an encrypted-history rejection on the third message. The targeted recovery patch passed offline checks and a live continuation of the affected chat after restart, with exact first-message recall and unchanged tasks. Live natural-language reminder tool use, browser history after reload and curated-memory recall in a distinct fresh session have now passed. A bounded sequential supplies/meals experiment with native schema validation and app result delivery also passed. iPhone lock-screen notification display and correct-chat navigation were confirmed on 2 November. Graceful app/gateway downtime recovery and absence of duplicates on a later native scan passed on 4 November. Personal Google read access also passed on 4 November: ten upcoming primary events and one birthday matching the user’s expected count. Learned skill creation, interrupted model execution, power-loss/push-retry recovery and AnyList feasibility remain open. Phase 1 is not complete.
 
-Immediate priorities are to confirm the recovery in the affected chat, reduce frontend polling to an adaptive active/idle cadence, then validate tool use, cross-session memory and one small specialist handoff. See the [handoff](handoff.md) for acceptance checks and current limitations. The polling change is planned, not implemented.
+Recovery in the affected chat is confirmed and adaptive active/idle frontend polling is implemented with browser regression coverage. Live reminder tool use and fresh-session curated-memory recall are now verified. The small sequential specialist handoff is now verified; the real-device push check also passed on 2 November. Graceful app/gateway downtime recovery is now verified. Personal Google Calendar read-only feasibility is now verified. Next establish supported AnyList access or an agreed alternative and review remaining Phase 1 gates; broader failure recovery and automatic Calendar sync remain open. The previous pause was lifted on 25 November 2026; follow the current delivery order above. See the [handoff](handoff.md) for evidence and limitations.
 
 Exit criteria:
 
@@ -53,7 +73,9 @@ not a high count of agent runs or notifications.
 
 ## Phase 5 — Hosted friends pilot
 
-Deploy on a PaaS, initially considering Railway. Package the app and Hermes runtime for repeatable deployment with PostgreSQL, persistent Hermes homes, HTTPS, backups, restore instructions and basic monitoring. Native memory, skills and cron state must survive redeployments alongside application data.
+Extend the private Render deployment to support isolated households. Retain persistent
+PostgreSQL and Hermes homes, HTTPS, backups, restore instructions and monitoring. Native
+memory, skills and cron state must survive redeployments alongside application data.
 Complete the account and isolation work before inviting a few households.
 
 Exit criteria: the service works with the developer's laptop off; backup restoration has

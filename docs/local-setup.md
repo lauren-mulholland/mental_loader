@@ -4,6 +4,10 @@ For the current implementation and ordered next actions, read [development hando
 
 The first build runs on your laptop. No AWS, Fly, Railway, paid database, separate Redis service or cloud hosting account is required yet. You need one model-provider account for live chat, and trusted HTTPS for a later iPhone push test.
 
+For the next private personal hosted release, use [Render deployment](deployment.md).
+The local instructions below remain useful for development; the 25 November hosting
+decision supersedes earlier statements that cloud setup is not needed yet.
+
 ## What is already prepared
 
 | Component | Local location | Your action |
@@ -23,6 +27,7 @@ For a fresh checkout, first install Hermes as described in README, including the
 
 ```sh
 uv sync --project .local/hermes-runtime --frozen --no-dev --extra messaging
+uv pip install --python .local/hermes-runtime/.venv/bin/python -r hermes-validation-requirements.txt
 make setup
 make dev
 ```
@@ -80,6 +85,10 @@ uv run python scripts/scheduler_smoke.py
 
 It allows up to 150 seconds for scheduler cadence and writes local evidence to `.local/scheduler-check.json`. This check passed against the running gateway after approximately 60 seconds. It proves in-app dispatch, not that an iPhone displayed a push. If it fails, use `bash scripts/hermes.sh cron status` and `make doctor`. A scheduled job cannot run while the laptop sleeps or the Hermes gateway is stopped.
 
+## Verified service restart recovery
+
+On 4 November 2026, a test reminder was saved, both app and Hermes were stopped before it became due, and PostgreSQL retained the overdue undispatched task. After the user restarted `make dev`, native cron processed it once; a later successful scan produced no duplicate task or reminder. The completed test and evidence are recorded in `.local/downtime-check.json`. This used no model calls and no manual dispatch. Laptop power loss/sleep, interrupted model execution and phone push retry recovery remain separate checks.
+
 ## Diagnosing chat failures
 
 The app writes HTTP access logs and brief worker failures to the terminal running `make dev`. Failed chat replies include a request reference; search the terminal for that `run_id`. Worker logs include a safe failure category, without raw provider bodies, message text or keys. Hermes HTTP 200 responses still require a successful response-body status; a failed turn is recorded as failed and is not automatically replayed by the app. Hermes may retry individual provider calls internally.
@@ -98,20 +107,28 @@ Synthetic recovery and application failure handling are tested; a live retry of 
 
 ## What you need for iPhone notifications
 
+A real iPhone test passed on 2 November 2026: lock-screen display and correct-chat navigation were confirmed by the user. The temporary tunnel was closed and its backend phone registration removed after testing; its old Home Screen shortcut is no longer usable. Repeat these steps with a live trusted HTTPS origin for another phone test or ongoing use.
+
 1. In the app's `.env`, set `VAPID_SUBJECT=mailto:your-email-address`. The generated VAPID key is already local; do not regenerate it after subscribing devices unless you intend to reconnect them.
 2. Arrange trusted HTTPS to the app for a personal development test, using a trusted local certificate or a deliberately configured development tunnel. A plain HTTP LAN address cannot support the required iPhone web-push setup. No tunnel or public endpoint is created by the build.
 3. Set `PUBLIC_ORIGIN` to the exact HTTPS origin and `COOKIE_SECURE=true`, then restart the application. Keep the Hermes API private; only the app needs a phone-accessible URL.
-4. On iPhone, add the app to Home Screen, open it there, sign in, and enable notifications. Save a one-minute reminder, close the app and lock the phone. Allow for the one-minute scan interval. Confirm both receipt and navigation to the correct saved chat.
+4. On iPhone, add the app to Home Screen, open it there, sign in, and enable notifications. Save a one-minute reminder, leave its checkmark untouched, close the app and lock the phone. Tapping the checkmark completes the task and stops its reminder. Allow for the one-minute scan interval. Confirm both receipt and navigation to the correct saved chat.
 
 This remains a personal development test; full accounts, membership controls and production hardening are prerequisites for inviting friends.
 
-## Google Calendar comes next
+## Google Calendar read access
 
-After the core chat and notification tests work, create a Google Cloud project with Calendar API enabled and a Desktop OAuth client for the local read-only probe. This requires no server deployment. Save the client JSON as `.local/google-client.json`, then follow [the calendar probe instructions](feasibility.md#google-calendar-probe). Hosted OAuth and automatic birthday sync are later work.
+Use the personal Gmail account only, never work/Okta. Setup succeeded on 4 November 2026 in personal Chrome with project `mental-loader-513621`, a Desktop client and an External/Testing OAuth registration containing the personal account as its sole test user. Keep `.local/google-client.json` and the household token under `.local/google/` private with mode `0600`. Ten upcoming primary-calendar events and one birthday were read; the user confirmed one birthday was expected. No Calendar writes or model calls occurred. Verification is in `.local/google-calendar-check.json`. Testing-mode access expires after seven days, so repeat consent if needed on resume; preserve the existing client rather than creating new credentials unnecessarily.
 
-## Next specialist experiment
+For a fresh setup, create a Google Cloud project with Calendar API enabled and a Desktop OAuth client for the local read-only probe. This requires no server deployment. Save the client JSON as `.local/google-client.json`, then follow [the calendar probe instructions](feasibility.md#google-calendar-probe). Hosted OAuth and automatic birthday sync are later work.
 
-The installed `household-orchestrator`, `household-meals` and `household-supplies` skills define sequential native subagent handoffs and structured outputs. Try a manually supplied pantry and a request for three dinners. Inspect actual delegate_task calls; confirm the outputs respect supplied constraints and remain proposals. Pantry/grocery write tools and AnyList sync are not implemented yet.
+## Native delegation validation
+
+The lean Hermes installation does not include `jsonschema`. Without it, native delegation accepts parseable JSON without validating the supplied schema. Install `hermes-validation-requirements.txt` after each upstream `uv sync`; its five versions match the pinned upstream lockfile. The wrapper refuses startup if the validator is missing. Run `.local/hermes-runtime/.venv/bin/python scripts/hermes_schema_smoke.py` to verify both acceptance and rejection without model calls. Pass complete parsed schemas in `delegate_task` task objects as `tasks[].output_schema`; schema text in context alone does not enable validation.
+
+## Specialist experiment
+
+The installed `household-orchestrator`, `household-meals` and `household-supplies` skills define sequential native subagent handoffs and structured outputs. A bounded synthetic-pantry test returned three dinners through the app with both native child schemas validated. Repeat with manually supplied pantry facts when evaluating broader meal quality. Inspect actual delegate_task calls; confirm the outputs respect supplied constraints and remain proposals. Pantry/grocery write tools and AnyList sync are not implemented yet.
 
 Setup preserves skill files changed by Hermes so learned improvements are not silently overwritten. Review those local changes and promote useful improvements back into version-controlled skill sources deliberately.
 

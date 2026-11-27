@@ -87,7 +87,9 @@ class HouseholdAgent:
                 headers={
                     "Authorization": f"Bearer {settings.hermes_api_key}",
                     "Idempotency-Key": state["run_id"],
-                    "X-Hermes-Session-Key": f"mental-loader:household:{state['household_id']}",
+                    # A new app chat must start a fresh native session/memory snapshot.
+                    # Profile memory remains shared within the dedicated household home.
+                    "X-Hermes-Session-Key": conversation,
                 },
                 json={
                     "model": "hermes-agent",

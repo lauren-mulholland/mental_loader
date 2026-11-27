@@ -78,10 +78,19 @@ def test_hermes_adapter_uses_stable_conversation_and_no_auto_retries(context, mo
     process_run(app.state.sessions, agent)
     payloads = [json.loads(request.content) for request in requests]
     assert payloads[0]["conversation"] == payloads[1]["conversation"]
+    assert requests[0].headers["x-hermes-session-key"] == payloads[0]["conversation"]
+    assert requests[1].headers["x-hermes-session-key"] == payloads[1]["conversation"]
     assert requests[0].headers["idempotency-key"] != requests[1].headers["idempotency-key"]
     assert requests[0].headers["authorization"] == "Bearer fixture-key"
     with app.state.sessions() as db:
         assert db.scalar(select(AIUsage)).input_tokens == 15
+    # Fresh app chats must not resolve back to the previous native session.
+    submit(client, "A separate chat")
+    process_run(app.state.sessions, agent)
+    separate = json.loads(requests[2].content)
+    assert separate["conversation"] != payloads[0]["conversation"]
+    assert requests[2].headers["x-hermes-session-key"] == separate["conversation"]
+    assert requests[2].headers["x-hermes-session-key"] != payloads[0]["conversation"]
 
 
 def test_second_household_cannot_use_personal_hermes(context):

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,16 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+psycopg://mental_loader:local_only@127.0.0.1:55432/mental_loader"
     )
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def postgres_driver(cls, value):
+        # PaaS URLs omit the driver; this project installs psycopg 3, not psycopg2.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value[len(prefix):]
+        return value
+
     public_origin: str = "http://localhost:8000"
     cookie_secure: bool = False
     ai_enabled: bool = False

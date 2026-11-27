@@ -1,0 +1,84 @@
+# Initial deployments stay in setup mode until personal data has been restored.
+# Review paid service sizes in Render before creating resources.
+services:
+  - type: web
+    name: mental-loader-web
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile.web
+    region: oregon
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    healthCheckPath: /healthz
+    # A disk forces stop-before-start deploys: embedded workers must never overlap.
+    disk:
+      name: web-state
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DEPLOYMENT_READY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mental-loader-db
+          property: connectionString
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: AI_ENABLED
+        value: "true"
+      - key: AI_DAILY_CALL_LIMIT
+        value: "20"
+      - key: HERMES_HOSTPORT
+        fromService:
+          type: pserv
+          name: mental-loader-hermes
+          property: hostport
+      - key: HERMES_API_KEY
+        fromService:
+          type: pserv
+          name: mental-loader-hermes
+          envVarKey: API_SERVER_KEY
+      - key: HERMES_HOUSEHOLD_ID
+        sync: false
+      - key: VAPID_PRIVATE_KEY_B64
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+  - type: pserv
+    name: mental-loader-hermes
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile.hermes
+    region: oregon
+    plan: standard
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    disk:
+      name: hermes-state
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: DEPLOYMENT_READY
+        sync: false
+      - key: PORT
+        value: "8642"
+      - key: API_SERVER_KEY
+        generateValue: true
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ML_HOUSEHOLD_ACCESS_CODE
+        sync: false
+      # Public HTTPS callback satisfies existing tool transport validation.
+      # Set after Render assigns the web URL; setup mode does not use this value.
+      - key: ML_BACKEND_URL
+        sync: false
+databases:
+  - name: mental-loader-db
+    region: oregon
+    plan: basic-256mb
+    postgresMajorVersion: "17"
+    databaseName: mental_loader
+    user: mental_loader
+    diskSizeGB: 1
+    ipAllowList: []

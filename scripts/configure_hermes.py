@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".local/hermes-runtime"))
-os.environ["HERMES_HOME"] = str(ROOT / ".local/hermes-home")
-os.environ["HERMES_RUNTIME_DIR"] = str(ROOT / ".local/hermes-managed")
+os.environ.setdefault("HERMES_HOME", str(ROOT / ".local/hermes-home"))
+os.environ.setdefault("HERMES_RUNTIME_DIR", str(ROOT / ".local/hermes-managed"))
 
 
 def install_skills(root, home):
@@ -47,7 +47,7 @@ def install_skills(root, home):
 
 
 def main():
-    from cron.jobs import create_job, list_jobs
+    from cron.jobs import create_job, list_jobs, update_job
     from ruamel.yaml import YAML
 
     home = Path(os.environ["HERMES_HOME"])
@@ -55,6 +55,10 @@ def main():
     yaml = YAML()
     path = home / "config.yaml"
     config = yaml.load(path.read_text()) or {}
+    hosted_workdir = os.environ.get("ML_HOSTED_WORKDIR")
+    if hosted_workdir:
+        Path(hosted_workdir).mkdir(parents=True, exist_ok=True)
+        config.setdefault("terminal", {})["cwd"] = hosted_workdir
     config.setdefault("timezone", "Australia/Sydney")
     platforms = config.setdefault("platform_toolsets", {})
     for platform in ("cli", "api_server", "cron"):
@@ -99,6 +103,8 @@ def main():
             raise RuntimeError(
                 "Existing reminder job differs; inspect it before changing its behaviour"
             )
+        if hosted_workdir:
+            update_job(job["id"], {"workdir": hosted_workdir})
     else:
         job = create_job(
             prompt=None,
@@ -107,6 +113,7 @@ def main():
             script="mental-loader-reminders.py",
             no_agent=True,
             deliver="local",
+            workdir=hosted_workdir,
         )
     print(f"Native Hermes features configured; reminder cron job: {job['id']} (no-agent).")
     print("Household skills installed: " + ", ".join(installed))

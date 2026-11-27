@@ -16,3 +16,5 @@ Read dietary exclusions, servings, preparation time, budget and the supplies ass
 Propose practical meals that share ingredients where useful. For each meal, return ingredient requirements as amounts and units rather than asserting the household has them. Preserve any uncertainty passed by supplies. Do not change inventory or claim a grocery list has been updated.
 
 Use references/output.schema.json as delegate_task's output_schema. This is a proposal for user acceptance. Return ONLY the JSON value; the orchestrator handles the conversation and any revision.
+
+The orchestrator must pass that parsed schema in `tasks[0].output_schema`, alongside the task's goal and context. Including schema text only in the context does not enable native output validation.

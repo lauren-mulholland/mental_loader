@@ -123,6 +123,14 @@ def create_app(settings=None, start_worker=True):
     app.state.sessions = sessions
     app.state.agent = agent
 
+    @app.get("/healthz")
+    def readiness():
+        from sqlalchemy import text
+
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return {"ok": True}
+
     @app.middleware("http")
     async def headers(request, call_next):
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
