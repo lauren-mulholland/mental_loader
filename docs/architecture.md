@@ -1,6 +1,6 @@
 # Architecture
 
-Agreed baseline: 26 October 2026; updated 25 November 2026. This document distinguishes the target boundaries from the smaller [current feasibility build](feasibility.md). Current next steps and operational state are in [development handoff](handoff.md).
+Agreed baseline: 26 October 2026; updated 27 November 2026. This document distinguishes the target boundaries from the smaller [current feasibility build](feasibility.md). Current next steps and operational state are in [development handoff](handoff.md).
 
 ## Components
 
@@ -54,6 +54,15 @@ Hermes remains responsible for native preferences/memory, sessions, skills and s
 structured transactional facts remain in PostgreSQL. Define how profile corrections update
 native memory when implementing editable onboarding answers. These are target boundaries;
 category APIs, onboarding and inventory records are not yet implemented.
+
+On 27 November the user selected UI design and implementation of the logical Hermes/custom
+code boundary as the next work. Audit existing handlers first, then establish shared
+application operations behind direct UI endpoints and thin agent tools. Scope, validation,
+required transitions, transactions and external actions belong in these operations; runtime
+request/session translation stays in the Hermes adapter. An agent proposal is not an accepted
+transactional record until a validated application operation saves it. Native preferences
+and editable structured settings need an explicit ownership/correction contract before
+adding new storage. This is the next design/refactor brief, not a completed implementation.
 
 ## Agent responsibilities
 
@@ -119,7 +128,7 @@ hooks. Full internal execution-state portability is not promised.
 Railway supersedes Render for the personal pilot at the user's approximately US$10/month
 budget. A US$10 workspace Compute hard cap is explicitly requested, with shutdown accepted.
 The cap is configured/verified in Railway separately from `.railway/railway.ts`. Keep one
-awake Web, one private Hermes, and PostgreSQL 17 with persistent data/native state; only Web
+awake Web, one private Hermes, and PostgreSQL 18 with persistent data/native state; only Web
 receives a public domain. Both app services build GitHub main after repository connection
 and initial infrastructure apply. Later app pushes do not automatically apply IaC.
 The app can derive its HTTPS origin from Railway's domain or an explicit origin, and uses

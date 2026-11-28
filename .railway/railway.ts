@@ -3,11 +3,12 @@ import { database, defineRailway, github, project, service, volume } from "railw
 // Billing is NOT controlled by this file. Set a US$10 Compute hard limit in the
 // Railway workspace before applying. The user accepts shutdown when it is reached.
 export default defineRailway((ctx) => {
-  const region = "us-west2";
-  const webData = volume("web-state", { region, sizeMB: 1024 });
-  const hermesData = volume("hermes-state", { region, sizeMB: 1024 });
+  // Keep services alongside the database already provisioned in production.
+  const region = "iad";
+  const webData = volume("web-state", { region, sizeMB: 500 });
+  const hermesData = volume("hermes-state", { region, sizeMB: 500 });
   const postgres = database("Postgres", "postgres", {
-    image: "ghcr.io/railwayapp-templates/postgres-ssl:17",
+    image: "ghcr.io/railwayapp-templates/postgres-ssl:18",
     output: "DATABASE_URL",
     defaultMountPath: "/var/lib/postgresql/data",
     region,

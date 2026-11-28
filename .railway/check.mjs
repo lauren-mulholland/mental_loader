@@ -12,7 +12,7 @@ const errors = validateGraph({
 assert.deepEqual(errors, []);
 const byName = Object.fromEntries(resources.map(resource => [resource.name, resource]));
 assert.equal(byName.Postgres.engine, 'postgres');
-assert.match(byName.Postgres.image, /:17$/);
+assert.match(byName.Postgres.image, /:18$/);
 assert.equal(byName.Web.variables.DATABASE_URL.resource, 'database.Postgres');
 assert.equal(byName.Web.variables.HERMES_HOST.resource, 'service.Hermes');
 for (const name of ['Web', 'Hermes', 'Postgres']) {

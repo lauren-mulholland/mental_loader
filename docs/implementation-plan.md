@@ -1,6 +1,29 @@
 # Implementation plan
 
-Agreed baseline: 26 October 2026; status updated 4 November 2026. Build the smallest useful household workflow first, learn from real use, and preserve boundaries that permit a later agent-framework change. For the current working state and ordered next actions, start with [development handoff](handoff.md#next-steps-in-order).
+Agreed baseline: 26 October 2026; priorities updated 27 November 2026. Build the smallest useful household workflow first, learn from real use, and preserve clear application/agent boundaries. For the current working state and ordered next actions, start with [development handoff](handoff.md#next-thread-ui-design-and-hermesapplication-boundary).
+
+## Current delivery order — 27 November 2026
+
+The fresh personal Railway deployment is live and the user confirmed sign-in. The next
+requested work is **UI design and implementation of a logical boundary between Hermes and
+custom code**. This supersedes the deployment/onboarding order below.
+
+1. Audit existing screens and trace direct UI and agent actions to identify shared rules
+   and current coupling. Design minimal mobile/desktop category navigation with agent access.
+2. Define the application operations used by both UI APIs and thin agent tools. Keep auth,
+   validation, transactions, external adapters and authoritative records in custom code;
+   keep native reasoning, sessions, curated memory, skills and delegation in Hermes.
+   Preserve the current no-agent scheduler/dispatch split rather than adding another timer.
+3. Implement and verify one vertical slice through that boundary. Reuse existing birthday
+   UI/domain code where helpful; first category and final visual design are not yet chosen.
+   Routine supported record operations must work with AI unavailable.
+4. Add adaptive category onboarding and further Events, Meals, Shopping and Stock views
+   incrementally. Resolve editable preference ownership and correction propagation before
+   creating competing app/native-memory copies.
+
+The workspace subscription/cap mismatch and hosted phone-delivery check remain separate
+operational follow-ups; see the handover. Do not change subscriptions or push to GitHub
+without authorization. This planning update does not implement the UI or boundary refactor.
 
 ## Hosting update — 26 November 2026
 
@@ -9,9 +32,9 @@ with an explicitly requested US$10 Compute hard cap and accepted shutdown. Confi
 workspace limit before provisioning. Follow [deployment](deployment.md), restore state and
 personal accounts before enabling processing, and connect the app services to GitHub main.
 The initial IaC apply remains necessary; app pushes do not apply infrastructure settings.
-No Git push is authorized. Onboarding remains the next product feature after deployment.
+No Git push is authorized. The 27 November UI/boundary priority above now takes precedence.
 
-## Current delivery order (25 November 2026)
+## Earlier delivery order (25 November 2026; superseded above)
 
 The user resumed work and accepted Render for a private personal deployment. This supersedes
 the previous pause, Vercel preference and the requirement to finish unrelated integration

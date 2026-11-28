@@ -5,6 +5,21 @@ model usage and tax. The user explicitly accepts service shutdown at a US$10 har
 **Do not push Git changes without permission.** The user will publish the changes; Railway
 can then build both app services from GitHub main.
 
+## Current deployment status — 26 November 2026
+
+Production Web is https://web-production-3bf4f1ba.up.railway.app. Both app services build
+GitHub main. At the user's request this was initialized fresh, with no existing app/native
+state transferred. Shared readiness flags are now true; do not re-import the initial input
+file over live settings. Owner sign-in/recovery credentials are private in
+`.local/railway-owner.json` (also Web `/data/owner.json`).
+
+The workspace currently reports Trial. CLI verification found **no hard cap**; attempting
+the requested US$8 alert / US$10 cap returned "Usage limits require an active subscription."
+The user must activate Hobby on the actual hosting workspace (or identify the subscribed
+workspace), then set and verify the cap. No subscription change was made by the assistant.
+The remaining numbered instructions describe an initial deployment or state-transfer route;
+do not repeat initialization on the live database/home.
+
 ## 1. Set the hard cap first
 
 Create a personal Railway account/workspace on the **Hobby** plan, not Pro. Before creating
@@ -111,25 +126,26 @@ Review the plan before confirming. A fresh environment should create:
 | --- | --- |
 | Web | Existing app image, one replica, 512 MiB maximum RAM, 0.5 CPU limit |
 | Hermes | Native runtime image, one replica, 512 MiB maximum RAM, 0.5 CPU limit |
-| Postgres | PostgreSQL 17 product, 256 MiB maximum RAM, 0.5 CPU limit |
-| web-state | 1 GB volume mounted at `/data` for persistent app key/operator files |
-| hermes-state | 1 GB volume mounted at `/data` for native memory, sessions, skills and scheduler |
+| Postgres | PostgreSQL 18 product, 256 MiB maximum RAM, 0.5 CPU limit |
+| web-state | 500 MB volume mounted at `/data` for persistent app key/operator files |
+| hermes-state | 500 MB volume mounted at `/data` for native memory, sessions, skills and scheduler |
 
 Railway's database product provisions its own data volume. Check that volume in the plan
-and dashboard. All resources use the same US West region. The configuration disables sleeping
+and dashboard. All resources use the existing database region, `iad` (US East). The configuration disables sleeping
 and public database/TCP exposure. Only Web will receive a generated public HTTPS domain.
 Both app services reference `lauren-mulholland/mental_loader`, branch `main`, with separate
 Dockerfiles. In Railway, connect the personal GitHub account/app and grant access to this
 repository before applying. The configuration file itself does not grant repository access. Do not apply this full-project file to an
 unrelated populated environment: omitted resources are treated as removals by Railway IaC.
 
-The live Railway plan/provisioning has not been run in this session. Local type/graph checks
-cannot verify account access, product availability or provider-side deployment behaviour.
+The initial live apply required 500 MB volumes because the current workspace rejected 1 GB.
+PostgreSQL 18 and its existing `iad` volume are preserved; do not downgrade that data directory.
 
 ## 5. Connect GitHub and build in setup mode
 
-The latest Railway configuration changes are initially uncommitted. Review, commit and push
-them to GitHub main yourself when ready; the assistant must ask before any remote push.
+Application images build from GitHub main. Publish future application changes yourself when
+ready; the assistant must ask before any remote push. Infrastructure settings are applied
+separately with the configuration CLI.
 Do not include `.env`, `.local`, input files or node_modules (all ignored).
 
 After repository access is granted and `railway config apply` creates the services, Railway

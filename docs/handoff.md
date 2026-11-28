@@ -1,36 +1,147 @@
 # Development handoff
 
-Updated 26 November 2026; earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). This handoff records the last verified state; inspect the working tree and running services before changing anything.
+Updated 27 November 2026 (Pacific/Honolulu); earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). The next-thread brief below takes precedence over older delivery orders and historical evidence. Inspect the working tree and running services before changing anything.
+
+## Next thread: UI design and Hermes/application boundary
+
+The user confirmed that the hosted personal sign-in works. Their next request is to design
+the UI and implement a logical boundary between Hermes and custom code. This handover is
+documentation only; that design/refactor has **not** been implemented yet. Do not resume the
+old deployment-first, onboarding-first or birthday-expansion order automatically.
+
+### Product direction to preserve
+
+Build a household management app with built-in agent support. The user wants category
+views/tabs for **Events, Meals, Shopping and Stock/Supplies**, introduced incrementally.
+Viewing, adding, editing and completing supported records must be possible without chat.
+Use the agent for judgement, ambiguous natural language, suggestions and planning. Chat
+remains useful, but must not be the only way to operate the product.
+
+Adaptive onboarding remains planned: ask which categories to manage, then appropriate
+follow-ups, with skip/resume and editable answers. Meal questions include favourite foods,
+dietary needs, usual staples and cooking constraints. Usual staples are preferences, not
+proof of current stock. UI design should accommodate onboarding, without assuming every
+category backend or a full onboarding flow must ship in the first slice.
+
+### Boundary to make concrete
+
+The existing direction below is the starting point, not evidence that every code path
+already enforces it. Audit the implementation before choosing refactor locations.
+
+| Area | Custom application owns | Hermes owns |
+| --- | --- | --- |
+| UI and records | Category APIs, PostgreSQL source of truth, lists/stock/events/plans as implemented, visible history and durable run status | Interpreting requests and proposing changes through tools |
+| Rules and writes | Permissions, validation, dates, calculations, transactions, idempotency and required workflow steps | Reasoning about uncertain inputs and asking useful follow-up questions |
+| Memory | Explicit structured settings, category selection/onboarding progress and inspectable transactional facts | Native curated preferences/routines, session recall and learned procedures |
+| Agent execution | Thin adapter, stable conversation/request IDs, scoped routing and application job leases | Model/provider execution, native sessions, skills and delegation |
+| Reminders | Stored deadlines/status, due evaluation, notification outbox and Web Push delivery | Current single native no-agent cron job triggering the deterministic dispatch action |
+| Integrations | Account authorization, encrypted credentials, API adapters and validated external actions | Deciding when an available tool is useful and interpreting its result |
+
+Both UI handlers and thin Hermes tools must invoke the same application operations. The
+browser must not receive runtime credentials; models must not choose tenant scope or write
+directly to application tables. Keep domain rules and integration code free of Hermes
+imports. Do not add a second scheduler, general-purpose memory store or replacement agent
+framework merely to create this boundary.
+
+Resolve preference ownership explicitly during design: decide which editable answers are
+structured app settings versus native memory, how corrections reach agent context, and how
+stale duplicate values are avoided. Do not silently turn the planned native-memory approach
+into a second authoritative preference database. Likewise, distinguish model proposals from
+accepted meal plans/shopping records and define the operation that accepts them.
+
+### Suggested next steps in order
+
+1. Inspect the current mobile/desktop UI and trace one direct birthday edit and one agent
+   reminder/tool call through API, permissions, domain code and storage. Identify actual
+   coupling, rather than creating abstract interfaces speculatively.
+2. Design a minimal navigation/screen layout with category views, agent access, empty states,
+   direct editing, pending/error feedback and a place for onboarding/settings. Separate
+   implemented records from future capabilities; full meals/shopping/inventory CRUD is not
+   implemented yet. No frontend framework migration has been requested.
+3. Specify a small application service/operation contract and the Hermes adapter/tool
+   boundary. Include authenticated scope, inputs/results, errors and persistence ownership.
+   Preserve existing private-chat and household access rules.
+4. Implement one useful vertical slice that demonstrates a direct UI action and an agent
+   action reaching the same rules and records. Events/birthday editing is a candidate because
+   it already has data and a direct-edit UI; the user has not selected the first category.
+5. Verify the slice on phone/desktop, direct CRUD with AI unavailable, shared validation and
+   access checks, and retained chat/session identity. Use meaningful boundary/regression
+   tests; label mocked provider checks and any real model spend clearly.
+
+### Code map for the next thread
+
+- UI: `src/mental_loader/static/{index.html,app.js,style.css,sw.js}`.
+- API/tool endpoints and composition: `src/mental_loader/app.py`.
+- Rules: `domain.py`, `birthdays.py`; storage/migrations: `storage.py`, `migrations/`.
+- Accounts/scope: `accounts.py`, `permissions.py`, `runtimes.py`.
+- Agent adapter: `agents.py`; durable app execution: `worker.py`.
+- Native tool wrappers: `hermes_plugin/__init__.py`; native configuration and reminder tick:
+  `scripts/configure_hermes.py`, `scripts/hermes_reminder_tick.py`; agent skills: `skills/`.
+- External adapters and delivery: `integrations.py`, `push.py`.
+- Existing intent: [product requirements](product-requirements.md),
+  [architecture](architecture.md), [deployment](deployment.md).
+
+### Operational state and constraints
+
+- Work in the existing checkout on local `main`. The user prefers no hobby-project branches.
+  **Do not push without explicit permission.** This handover does not authorize a commit,
+  push, paid plan change, runtime upgrade or production refactor/deployment.
+- At handover, uncommitted deployment changes were `.railway/railway.ts`,
+  `.railway/check.mjs`, `docs/deployment.md` and `docs/handoff.md`; this documentation update
+  also updates the implementation plan and architecture. Preserve this work.
+- Hosted URL: https://web-production-3bf4f1ba.up.railway.app. Fresh hosted data, user-confirmed
+  login, one successful tool-backed deployment-check conversation. No old data was imported.
+  Credentials are in ignored `.local/railway-owner.json`; do not copy them into documentation.
+- At last CLI check, the hosting workspace was Trial with **no hard cap**. Setting the
+  authorized US$8 alert / US$10 cap failed because an active subscription is required.
+  No subsequent billing fix has been reported. Keep this outstanding; do not claim it is set.
+- Both GitHub-main services autodeploy source changes; infrastructure needs a separate IaC
+  apply. Live configuration is PostgreSQL 18 in `iad`, 500 MB app/agent volumes, one replica
+  each, with the previously specified CPU/RAM limits. Local changes have not been pushed.
+- Hosted phone notification permission, lock-screen/laptop-off delivery and a cloud backup
+  drill remain unverified. Local app/Hermes were still running at the last process check;
+  inspect before starting duplicates. Household timezone is Australia/Sydney.
+- Last verification: 94 application tests/lint from deployment preparation; latest Railway
+  type/graph and whitespace checks passed; live fresh setup, login, agent/tool call, reminder
+  dispatch and restart persistence passed. No new application tests are needed for this
+  handover-only edit. Older test counts below are historical.
 
 ## Railway budget deployment — 26 November 2026
 
 The user selected Railway to target approximately US$10/month and explicitly accepts
 shutdown at a hard cap. This supersedes Render as the default host. **Do not push.**
 
-- Set a personal Railway workspace US$10 **Compute** hard limit and US$8 email alert before
-  provisioning. This is an external billing setting, not part of IaC, and has not been set
-  or verified by this work. OpenRouter costs/tax are separate. Do not raise the cap silently.
-- `.railway/railway.ts` uses the supported TypeScript IaC SDK, not the retired railway.json
-  format. It defines Web/Hermes/PostgreSQL 17, same-region persistent storage, single replicas,
-  sleeping disabled, 512 MiB Web/Hermes and 256 MiB database maxima with 0.5 CPU limits.
-- The user prefers GitHub connection: both app services now reference the personal repo
-  main branch. Connect the GitHub app and apply IaC once; source pushes do not apply IaC.
-  No push, repository connection or cloud deployment was performed here. Shared variables hold
-  independent `WEB_READY`/`HERMES_READY` flags; preserve both false until state is restored.
-- Private initial inputs are in ignored `.local/railway-inputs/shared.env`. A bootstrap app
-  key is preserved separately when no local app key exists. Do not regenerate inputs for a
-  running deployment. Local personal database/runtime state has not been migrated or stopped.
-- [Deployment](deployment.md) is now the Railway guide; [Render instructions](deployment-render.md)
-  and render.yaml remain historical alternatives. There has been no Railway login, live
-  plan/apply, deployment, budget change or Git push by this work.
-- Native memory, account/privacy boundaries, scheduler ownership and the restricted personal
-  PaaS route remain unchanged. Private-chat AI still requires an isolated scoped runtime.
-- Validation: 94 Python tests and lint pass; the pinned Railway SDK passes type/graph checks.
-  Both images build. Railway-mode disposable containers pass setup, PostgreSQL restore,
-  personal login, restart, native state persistence and single no-agent scheduler checks
-  under 512 MiB Web/Hermes and 256 MiB database limits. Measured usage was approximately
-  115 / 231 / 49 MiB respectively. These are synthetic checks without inference, not a
-  live Railway plan/deployment, confirmed monthly cost, or proof the workspace cap is set.
+- Live project `mental-loader`, production, workspace `lauren-mulholland's Projects`.
+  Web: https://web-production-3bf4f1ba.up.railway.app. Web and Hermes build GitHub `main`
+  using their distinct Dockerfiles; no CLI source upload or Git push was performed.
+- The initial IaC apply had failed because the current Trial workspace only accepts 500 MB
+  volumes. Corrected the definition to 500 MB Web/Hermes volumes, existing `iad` region and
+  PostgreSQL 18 (preserve the actual existing database version; do not downgrade its volume).
+  One replica, no sleeping, 512 MiB Web/Hermes and 256 MiB Postgres, 0.5 CPU limits.
+- User explicitly chose a fresh deployment, no old database or Hermes state. Initialized an
+  empty household and Lauren owner, clean Hermes config/SOUL and fresh native state; no old
+  conversations, memories, tasks or scheduler jobs imported. Both shared readiness flags are
+  true and shared WEB_ORIGIN is the real HTTPS origin. Do not re-import initial shared.env
+  over live flags/origin. Local app/Hermes were not stopped and were still listening locally.
+- New personal login/recovery credentials are in ignored, mode-0600 `.local/railway-owner.json`
+  and persistent Web `/data/owner.json`. Dedicated SSH identity is ignored
+  `.local/railway-deploy-key`; its public key was registered with Railway. Never print keys.
+- Verified live HTTPS health, personal sign-in, empty conversation access, real Hermes reply
+  using household_clock, successful reminder dispatch endpoint, and exactly one no-agent
+  dispatcher job. After redeploying both services, verified owner login, saved agent conversation,
+  native state and the same single scheduler job persisted. All three deployments report SUCCESS;
+  only Web has a public domain. Household timezone remains Australia/Sydney. Phone notification setup and
+  laptop-off delivery still require the user's device.
+- **Budget blocker:** CLI reports no workspace soft/hard cap and deployment plan Trial.
+  Attempt to set the explicitly authorized US$8 soft / US$10 hard cap was rejected with
+  "Usage limits require an active subscription." No subscription was changed. User must
+  activate Hobby on this workspace (or identify their subscribed workspace), then set and
+  verify the US$10 cap. Do not claim it is enforced. OpenRouter/tax remain separate.
+- Configuration type/graph checks and whitespace checks pass after live adjustments. Prior
+  synthetic validation: 94 Python tests, lint, Docker builds and restore/restart smoke passed;
+  those checks used PostgreSQL 17. Live fresh initialization on PostgreSQL 18 passed.
+- Native account/privacy boundaries and restricted personal PaaS routing remain unchanged.
+  Private-chat AI requires an isolated scoped runtime. Render instructions are archived.
 
 ## Consolidation — 26 November 2026
 
@@ -159,7 +270,10 @@ Worker output goes to the terminal, with no separate persistent app log. The CLI
 
 ## Next work and outstanding live gates
 
-Phase 2 is complete in source and local acceptance checks. Next new development is phase 3: recipients, preferences, budgets, dates, preparation lead times and gift completion, then account-authorized calendar discovery/update handling. The following phase 1 checks remain separate; do not label feasibility or the hosted friends pilot complete based on phase 2 isolation tests.
+The next development priority is the UI and Hermes/application boundary brief at the top of
+this document. The dated checks below are historical evidence and outstanding feasibility
+gates, not the next-thread task order. Do not label the hosted friends pilot complete based
+on local isolation tests.
 
 1. **Incident recovery confirmed.** On 27 October, verified the gateway had restarted after the patch, then sent one read-only request in the affected chat. It recalled the exact first user message, preserved the earlier app transcript and left tasks unchanged. The runtime log confirmed removal of four replay carriers and a successful bounded retry. One top-level model request was used; this is not a count of provider attempts or a dollar-cost measurement. This establishes recovery of the affected chat, not general multi-turn reliability.
 2. **Adaptive polling implemented.** `static/app.js` refreshes every 2.5 seconds while the selected chat has active runs and every 30 seconds when idle, measured after reads finish. Actions and tab return refresh immediately; hidden tabs stop polling. Refreshes serialize and queue a new read when an action or conversation switch occurs during an existing read. The separate once-per-minute no-agent reminder job is unchanged. `scripts/polling_smoke.py` exercises the actual frontend with a fake API and controlled browser clock: delayed reply, idle reminder, hidden/return, slow conversation switch, action during refresh, failed-read recovery, logout and single submission. This is frontend evidence, not a live scheduler/push check.
