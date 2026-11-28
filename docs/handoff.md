@@ -1,5 +1,9 @@
 # Development handoff
 
+## Accepted MCP direction — implement after design review
+
+On 27 November 2026 (Pacific/Honolulu), the user chose an application-owned MCP server consumed by our Hermes agent. When implementation resumes after the main chat's design review, use this approach for agent-facing application actions, including person/gift settings and bulk edits. Direct UI actions and MCP tools must invoke the same scoped application operations. This is a documented future implementation decision; it does not resume code changes or replace the current working native plugin/cron today. Read [MCP application interface](mcp-application-interface.md) before implementing the agent/application connection.
+
 Updated 27 November 2026 (Pacific/Honolulu); earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). The next-thread brief below takes precedence over older delivery orders and historical evidence. Inspect the working tree and running services before changing anything.
 
 ## Next thread: UI design and Hermes/application boundary
