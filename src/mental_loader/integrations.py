@@ -128,10 +128,12 @@ def save_connection(sessions, settings, household_id, user_id, credentials, atte
             row.encrypted_credentials = encrypted
 
 
-def calendar_events(sessions, settings, household_id, user_id):
+def calendar_events(sessions, settings, household_id, user_id, *, birthdays=False):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
+    from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
+    from httplib2 import Http
 
     vault = Vault(settings.secret_key_path)
     with sessions.begin() as db:
@@ -159,16 +161,30 @@ def calendar_events(sessions, settings, household_id, user_id):
             row.encrypted_credentials = vault.seal(
                 json.loads(credentials.to_json()), scope(household_id, user_id)
             )
-        with build("calendar", "v3", credentials=credentials, cache_discovery=False) as service:
-            result = (
-                service.events()
-                .list(
-                    calendarId="primary",
-                    timeMin=now().isoformat(),
-                    maxResults=50,
-                    singleEvents=True,
-                    orderBy="startTime",
-                )
-                .execute()
+        client = AuthorizedHttp(credentials, http=Http(timeout=10))
+        with build("calendar", "v3", http=client, cache_discovery=False) as service:
+            params = {
+                "calendarId": "primary",
+                "timeMin": now().isoformat(),
+                "maxResults": 50,
+                "singleEvents": True,
+                "orderBy": "startTime",
+            }
+            if not birthdays:
+                return service.events().list(**params).execute().get("items", [])
+            params.update(
+                timeMin=(now() - timedelta(days=2)).isoformat(),
+                timeMax=(now() + timedelta(days=366)).isoformat(),
+                eventTypes="birthday",
+                showDeleted=True,
+                maxResults=250,
             )
-        return result.get("items", [])
+            events = []
+            for _ in range(4):
+                result = service.events().list(**params).execute()
+                events.extend(result.get("items", []))
+                token = result.get("nextPageToken")
+                if not token:
+                    return events
+                params["pageToken"] = token
+            raise ValueError("Birthday calendar exceeded the sync limit")

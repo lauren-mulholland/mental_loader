@@ -339,7 +339,7 @@ def test_calendar_reader_never_uses_another_accounts_credentials(secured, monkey
 
     monkeypatch.setattr(
         "googleapiclient.discovery.build",
-        lambda *args, credentials, **kwargs: Service(credentials.token),
+        lambda *args, http, **kwargs: Service(http.credentials.token),
     )
     sign_in(client, a_code)
     result = client.get(f"/api/integrations/google/events?user_id={b_id}")

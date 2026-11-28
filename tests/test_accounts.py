@@ -109,6 +109,8 @@ def test_phase1_upgrade_preserves_credentials_sessions_and_history(database_url)
             "004",
             "005",
             "006",
+            "007",
+            "008",
         ]
     engine.dispose()
 
@@ -120,7 +122,7 @@ def test_migrations_fail_closed_and_roll_back(database_url, monkeypatch):
         connection.execute(text("CREATE TABLE incomplete (id INTEGER)"))
         raise RuntimeError("Simulated migration failure")
 
-    monkeypatch.setattr(migrations, "REVISIONS", (*migrations.REVISIONS, ("006", broken)))
+    monkeypatch.setattr(migrations, "REVISIONS", (*migrations.REVISIONS, ("009", broken)))
     with pytest.raises(RuntimeError, match="Simulated"):
         migrations.upgrade(engine)
     assert "incomplete" not in inspect(engine).get_table_names()
@@ -380,4 +382,4 @@ def test_concurrent_migration_starts_are_serialized(database_url):
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         results = list(pool.map(lambda _: start(), range(3)))
-    assert results == [["001", "002", "003", "004", "005", "006"]] * 3
+    assert results == [["001", "002", "003", "004", "005", "006", "007", "008"]] * 3

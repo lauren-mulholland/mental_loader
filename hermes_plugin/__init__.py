@@ -102,8 +102,23 @@ def register(ctx):
         body = {key: value for key, value in args.items() if key != "birthday_id"}
         return call("/api/tool/birthdays/" + birthday_id, body, method="PUT")
 
+    def complete_task(args, **kwargs):
+        from uuid import UUID
+
+        return call(
+            "/api/tool/tasks/" + str(UUID(args["task_id"])) + "/complete", {}, method="POST"
+        )
+
     schemas.extend(
         [
+            (
+                "household_complete_task",
+                "Complete a saved task. For birthday preparation this also marks the gift ready. "
+                "Only do this when the user confirms the work is finished.",
+                {"task_id": {"type": "string", "format": "uuid"}},
+                ["task_id"],
+                complete_task,
+            ),
             (
                 "household_birthdays",
                 "Read saved dated birthdays, budgets and gift progress.",

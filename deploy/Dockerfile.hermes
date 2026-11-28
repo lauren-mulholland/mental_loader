@@ -15,7 +15,7 @@ RUN set -eu; repository="$(sed -n '1p' hermes-runtime.ref)"; \
     git -C .local/hermes-runtime fetch --depth 1 origin "$revision"; \
     git -C .local/hermes-runtime checkout --detach FETCH_HEAD; \
     test "$(git -C .local/hermes-runtime rev-parse HEAD)" = "$revision"
-RUN uv sync --project .local/hermes-runtime --frozen --no-dev --extra messaging \
+RUN uv sync --project .local/hermes-runtime --frozen --no-dev --extra messaging --extra mcp \
     && uv pip install --python .local/hermes-runtime/.venv/bin/python -r hermes-validation-requirements.txt
 COPY scripts ./scripts
 COPY patches ./patches

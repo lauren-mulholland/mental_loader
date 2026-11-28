@@ -161,7 +161,8 @@ def test_native_plugin_registration_uses_real_handler_shape(monkeypatch):
     ctx = Context()
     plugin.register(ctx)
     assert set(ctx.tools) == {"household_clock", "household_tasks", "household_remind",
-                                 "household_birthdays", "household_save_birthday"}
+                                 "household_birthdays", "household_save_birthday",
+                                 "household_complete_task"}
     assert "household_id" not in ctx.tools["household_remind"]["schema"]["parameters"]["properties"]
 
 

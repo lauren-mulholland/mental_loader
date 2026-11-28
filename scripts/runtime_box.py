@@ -96,9 +96,13 @@ def provision(
                 "agent:\n  max_turns: 8\n"
                 "delegation:\n  max_iterations: 4\n  max_concurrent_children: 1\n"
                 "  max_spawn_depth: 1\n  inherit_mcp_toolsets: false\n"
+                "mcp_servers:\n  mental_loader:\n"
+                "    url: ${ML_BACKEND_URL}/mcp\n"
+                "    headers:\n      Authorization: Bearer ${ML_HOUSEHOLD_ACCESS_CODE}\n"
                 "platform_toolsets:\n"
-                "  api_server: [household, memory, session_search, skills, delegation]\n"
-                "  cli: [household, memory, session_search, skills]\n"
+                "  api_server: [household, memory, session_search, skills, delegation, "
+                "mcp-mental_loader]\n"
+                "  cli: [household, memory, session_search, skills, mcp-mental_loader]\n"
                 "  cron: [household]\n"
             )
             # Bootstrap is a short, trusted copy/chown operation; the actual model

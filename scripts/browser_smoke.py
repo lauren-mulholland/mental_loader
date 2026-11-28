@@ -24,6 +24,7 @@ def main():
         page.get_by_role("button", name="Open my household").click()
         page.locator("#workspace").wait_for(state="visible")
         expect(page.locator("#send")).to_be_enabled()
+        page.locator("[data-view=assistant]").click()
         page.locator("#message-input").fill(f"/remind 1m Feasibility check {str(uuid4())[:8]}")
         page.get_by_role("button", name="Send message").click()
         page.locator(".message.assistant").filter(has_text="Saved:").last.wait_for(timeout=15000)

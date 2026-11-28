@@ -153,6 +153,27 @@ class Birthday(Base):
     task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), unique=True)
     calendar_id: Mapped[str | None] = mapped_column(String(1024))
     event_id: Mapped[str | None] = mapped_column(String(1024))
+    person_id: Mapped[str | None] = mapped_column(String(36))
+    actions: Mapped[str | None] = mapped_column(Text)
+    calendar_key: Mapped[str | None] = mapped_column(String(64))
+    sync_excluded: Mapped[bool] = mapped_column(default=False)
+
+
+class OccasionSettings(Base):
+    __tablename__ = "occasion_settings"
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    document: Mapped[str] = mapped_column(Text, default="{}")
+
+
+class GiftEditPreview(Base):
+    __tablename__ = "gift_edit_previews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"))
+    document: Mapped[str] = mapped_column(Text)
+    created: Mapped[str] = mapped_column(String(40))
+    request_id: Mapped[str | None] = mapped_column(String(36))
+
 
 
 class PushSubscription(Base):

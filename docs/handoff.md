@@ -4,14 +4,15 @@
 
 On 27 November 2026 (Pacific/Honolulu), the user chose an application-owned MCP server consumed by our Hermes agent. When implementation resumes after the main chat's design review, use this approach for agent-facing application actions, including person/gift settings and bulk edits. Direct UI actions and MCP tools must invoke the same scoped application operations. This is a documented future implementation decision; it does not resume code changes or replace the current working native plugin/cron today. Read [MCP application interface](mcp-application-interface.md) before implementing the agent/application connection.
 
-Updated 27 November 2026 (Pacific/Honolulu); earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). The next-thread brief below takes precedence over older delivery orders and historical evidence. Inspect the working tree and running services before changing anything.
+Updated 27 November 2026 (Pacific/Honolulu); earlier evidence dated Australia/Sydney. Read this first when continuing in a fresh conversation, then consult [implementation plan](implementation-plan.md), [architecture](architecture.md), [design decisions](design-decisions.md) and [local setup](local-setup.md). The latest local implementation below takes precedence over the original brief, older delivery orders and historical evidence. Inspect the working tree and running services before changing anything.
+
+## Latest local implementation — 27 November 2026
+
+The UI/boundary brief below has now been implemented as a first Events slice in this checkout. See [UI and application boundary](ui-and-application-boundary.md) for the design, operation contract, preference/correction ownership and proposal acceptance contract. Events is the default category with direct birthday/reminder editing; Assistant and Settings have dedicated screens. Meals/Shopping/Stock are explicit planned screens. `application.HouseholdOperations` now owns shared birthday/task/reminder operations and transactions; browser and tool adapters call it. Native plugin completion uses the same domain transition. No database migration, preference mirror, new scheduler, runtime upgrade, paid model call, commit, push or deployment was performed for this slice. Existing local services were left running; isolated browser fixtures use temporary databases. Verification: 98 application tests pass on SQLite, lint and whitespace checks pass, and isolated desktop/phone browser checks pass for birthday/reminder editing and retry, category navigation, chat drafts, adaptive polling, private-chat sharing/revocation and account recovery. Provider/session assertions use mocks; no live model call or real-device notification check was run. Screenshots contain synthetic data in `.local/screenshots/categories/`. Restart local development services to load the new backend and native tool registration; hosted source remains unchanged.
 
 ## Next thread: UI design and Hermes/application boundary
 
-The user confirmed that the hosted personal sign-in works. Their next request is to design
-the UI and implement a logical boundary between Hermes and custom code. This handover is
-documentation only; that design/refactor has **not** been implemented yet. Do not resume the
-old deployment-first, onboarding-first or birthday-expansion order automatically.
+The user confirmed that the hosted personal sign-in works. Their next request is to design the UI and implement a logical boundary between Hermes and custom code. The following is the original starting brief; the latest local implementation above supersedes its unimplemented status. Do not resume the old deployment-first, onboarding-first or birthday-expansion order automatically.
 
 ### Product direction to preserve
 

@@ -25,7 +25,7 @@ flowchart TD
 
 | Component | Owns |
 | --- | --- |
-| PWA | Currently chat, upcoming tasks and notification permission; target category views support direct household record management alongside agent assistance. |
+| PWA | Category navigation with direct Events/birthday/reminder editing, Assistant, Settings and planned-category screens. |
 | Application API | Authentication, access checks, user-visible transcripts, durable request status and household records. |
 | Hermes adapter | Translation between application conversations and Hermes requests; stable conversation identifiers and request identities. |
 | Hermes | Agent conversation, native sessions and recall, curated memory, skills, scheduling and specialist delegation. |
@@ -43,26 +43,15 @@ Use Hermes' built-in features directly. Portability means keeping our household 
 
 ## Direct UI and agent actions
 
-The 25 November 2026 product direction is an app with built-in agent support. Future Events,
-Meals, Shopping and Stock/Supplies screens call household-scoped application APIs directly.
-Agent tools call the same domain functions and update the same PostgreSQL records. Validation,
-permissions and required state transitions belong in those shared functions, not solely in
-prompts or browser code. Routine list and stock edits must work without inference.
+The product is an app with built-in agent support. Events now calls scoped application APIs directly; future Meals, Shopping and Stock/Supplies screens will follow the same boundary. Agent tools call the same application operations and domain functions, updating the same PostgreSQL records. Validation, permissions and required state transitions belong in those shared functions. Routine supported record edits work without inference.
 
 Category selection and resumable onboarding progress will be explicit application state.
 Hermes remains responsible for native preferences/memory, sessions, skills and scheduling;
 structured transactional facts remain in PostgreSQL. Define how profile corrections update
 native memory when implementing editable onboarding answers. These are target boundaries;
-category APIs, onboarding and inventory records are not yet implemented.
+the first birthday/reminder category APIs are implemented; adaptive onboarding and inventory records are not yet implemented.
 
-On 27 November the user selected UI design and implementation of the logical Hermes/custom
-code boundary as the next work. Audit existing handlers first, then establish shared
-application operations behind direct UI endpoints and thin agent tools. Scope, validation,
-required transitions, transactions and external actions belong in these operations; runtime
-request/session translation stays in the Hermes adapter. An agent proposal is not an accepted
-transactional record until a validated application operation saves it. Native preferences
-and editable structured settings need an explicit ownership/correction contract before
-adding new storage. This is the next design/refactor brief, not a completed implementation.
+On 27 November the first category/boundary slice was implemented locally. Events is the default view, with direct dated-birthday editing and reminder creation/completion; Assistant and Settings have dedicated views, and Meals/Shopping/Stock have explicit future-capability screens. `application.HouseholdOperations` owns transactions and scoped operations shared by browser and native tool adapters. Task completion now lives in domain code. The existing Hermes adapter/session identity, worker leases and native cron schedule remain unchanged. See [UI and application boundary](ui-and-application-boundary.md) for operation contracts, privacy scope, preference ownership, proposal acceptance and verification limits.
 
 ## Agent responsibilities
 

@@ -1,9 +1,11 @@
 """Leased chat work and reminder delivery. Hermes cron continues to own reminder timing."""
 
+import json
 import logging
 import threading
 from contextlib import contextmanager
 from datetime import timedelta
+from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import exists, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -13,7 +15,17 @@ from mental_loader.accounts import subscription_authorized
 from mental_loader.agents import HermesResponseError
 from mental_loader.permissions import can_access
 from mental_loader.push import send_push
-from mental_loader.storage import Delivery, Message, PushSubscription, Run, Task, identifier, now
+from mental_loader.storage import (
+    Birthday,
+    Conversation,
+    Delivery,
+    Message,
+    PushSubscription,
+    Run,
+    Task,
+    identifier,
+    now,
+)
 
 logger = logging.getLogger(__name__)
 LEASE_SECONDS = 120
@@ -175,7 +187,40 @@ def process_run(sessions, agent):
             )
 
 
-def enqueue_due(sessions, clock=None, household_id=None, allow_legacy=True):
+def queue_birthday_suggestions(db, task, clock):
+    source = db.get(Run, task.run_id)
+    prefix = "Birthday nudge:"
+    if not source or not source.input.startswith(prefix):
+        return
+    birthday = db.get(Birthday, source.input.removeprefix(prefix))
+    chat = db.get(Conversation, task.conversation_id)
+    plan = json.loads(birthday.actions or "{}") if birthday else {}
+    if (
+        not birthday
+        or birthday.sync_excluded
+        or chat.visibility != "household"
+        or "gift" not in plan.get("actions", [])
+        or birthday.gift_status != "planning"
+        or birthday.occasion_date < clock.date()
+    ):
+        return
+    request = str(uuid5(NAMESPACE_URL, f"mental-loader:birthday-suggestions:{birthday.id}"))
+    db.add(
+        Run(
+            household_id=task.household_id,
+            conversation_id=task.conversation_id,
+            request_id=request,
+            input=(
+                f"An upcoming birthday ({birthday.id}) is due for a gift suggestion. "
+                "Use the application MCP gift settings and saved ideas. Provide a short suggestion "
+                "within budget in this chat. Do not change records or handle other occasions."
+            ),
+            status="pending",
+        )
+    )
+
+
+def enqueue_due(sessions, clock=None, household_id=None, allow_legacy=True, suggest_gifts=False):
     clock = clock or now()
     with sessions.begin() as db:
         query = select(Task).where(
@@ -206,6 +251,8 @@ def enqueue_due(sessions, clock=None, household_id=None, allow_legacy=True):
                     content=f"Reminder: {task.title}",
                 )
             )
+            if suggest_gifts:
+                queue_birthday_suggestions(db, task, clock)
             for subscription in db.scalars(
                 select(PushSubscription).where(
                     PushSubscription.household_id == task.household_id,
@@ -312,21 +359,3 @@ def deliver_pending(sessions, settings, sender=send_push, clock=None, household_
             if outcome == "expired" and subscription:
                 db.delete(subscription)
             db.commit()
-
-
-def complete_task(db, household_id, task_id):
-    from mental_loader.storage import Birthday
-
-    result = db.execute(
-        update(Task)
-        .where(
-            Task.id == task_id,
-            Task.household_id == household_id,
-        )
-        .values(status="done")
-    )
-    if result.rowcount == 1:
-        db.execute(update(Birthday).where(
-            Birthday.task_id == task_id, Birthday.household_id == household_id
-        ).values(gift_status="ready"))
-    return result.rowcount == 1

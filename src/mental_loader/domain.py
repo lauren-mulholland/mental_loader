@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from mental_loader.storage import Run, Task
@@ -55,3 +55,23 @@ def create_reminder(db: Session, run: Run, timezone: str, clock: datetime) -> Ta
     db.add(task)
     db.flush()
     return task
+
+
+def complete_task(db, household_id, task_id):
+    from mental_loader.storage import Birthday
+
+    result = db.execute(
+        update(Task)
+        .where(
+            Task.id == task_id,
+            Task.household_id == household_id,
+        )
+        .values(status="done")
+    )
+    if result.rowcount == 1:
+        db.execute(
+            update(Birthday)
+            .where(Birthday.task_id == task_id, Birthday.household_id == household_id)
+            .values(gift_status="ready")
+        )
+    return result.rowcount == 1

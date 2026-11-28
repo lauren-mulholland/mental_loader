@@ -29,6 +29,10 @@ Agreed baseline: 26 October 2026; updated 4 November 2026. Accepted choices guid
 | Reduce idle frontend polling | Agreed next direction; pending implementation | Poll quickly while a reply is pending, around every 30 seconds when idle, refresh after actions/on tab return and pause hidden tabs. Preserve the separate native reminder schedule. SSE can wait. |
 | Track narrow upstream compatibility fixes | Implemented workaround | Keep the pinned-runtime encrypted-reasoning recovery patch in version control, apply it idempotently and refuse conflicts. Preserve native runtime ownership and review whether the patch is still needed on upgrade. Live recovery remains unconfirmed. |
 
+## UI and boundary decisions — 27 November 2026
+
+Events is the first implemented category, reusing dated birthdays and preparation tasks. Assistant and Settings have dedicated views; Meals, Shopping and Stock have explicit planned-capability screens. Preserve conversation-based privacy for existing records. Browser and tool adapters invoke shared application operations with a server-resolved principal; operations own scope checks and transactions. General preferences remain native curated memory, while occasion notes stay on their dated record. Future structured settings must be injected into current agent context without becoming a duplicated native-memory authority. Meal/shopping proposals require an explicit acceptance operation before transactional writes. See [UI and application boundary](ui-and-application-boundary.md) for the implemented scope and future acceptance/correction contracts.
+
 ## Hosting budget — 26 November 2026
 
 Railway Hobby replaces Render as the selected host to target US$5–10/month before model

@@ -9,6 +9,8 @@ from mental_loader.migrations import (
     v004_security,
     v005_integrity,
     v006_birthdays,
+    v007_planning,
+    v008_calendar_selection,
 )
 
 REVISIONS = (
@@ -18,6 +20,8 @@ REVISIONS = (
     ("004", v004_security.upgrade),
     ("005", v005_integrity.upgrade),
     ("006", v006_birthdays.upgrade),
+    ("007", v007_planning.upgrade),
+    ("008", v008_calendar_selection.upgrade),
 )
 
 

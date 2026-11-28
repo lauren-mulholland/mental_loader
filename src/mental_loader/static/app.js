@@ -50,8 +50,14 @@ function signedOut() {
   lastMessageSignature = '';
   $('#message-input').value = '';
   drafts.clear();
+  clearEventState();
+  assistantOpen = false;
   me = null;
   $('#new-private-chat').disabled = true;
+  reminderRequest = null;
+  $('#reminder-form').reset();
+  $('#reminder-feedback').textContent = '';
+  setView('events');
   $('#messages').replaceChildren();
   $('#tasks').replaceChildren();
   $('#birthdays').replaceChildren();
@@ -79,6 +85,7 @@ async function loadConversations(preferred) {
   }
   const next = rows.some((row) => row.id === preferred) ? preferred : rows[0].id;
   if (next !== conversation) {
+    clearEventState();
     resetBirthday();
     $('#birthdays').replaceChildren();
     if (conversation) drafts.set(conversation, $('#message-input').value);
@@ -99,7 +106,7 @@ async function loadConversations(preferred) {
     button.onclick = () => loadConversations(row.id).then(refresh).catch((error) => notice(error.message));
     $('#conversations').append(button);
   });
-  history.replaceState(null, '', `/?conversation=${encodeURIComponent(conversation)}`);
+  history.replaceState(null, '', `/?conversation=${encodeURIComponent(conversation)}&view=${currentView}`);
   lastMessageSignature = '';
 }
 
@@ -129,6 +136,8 @@ async function refreshOnce() {
   // Wait for both reads even if one fails, so retries cannot overlap a slow sibling.
   const results = await Promise.allSettled([
     api(`/api/conversations/${selectedConversation}/messages`), api('/api/tasks'), api('/api/birthdays'),
+    api(`/api/events/${selectedConversation}`), api(`/api/events/${selectedConversation}/previews`),
+    api(`/api/events/${selectedConversation}/sync`),
   ]);
   const failure = results.find((result) => result.status === 'rejected');
   if (failure) {
@@ -146,10 +155,12 @@ async function refreshOnce() {
     }
     throw failure.reason;
   }
-  const [data, tasks, birthdays] = results.map((result) => result.value);
+  const [data, tasks, birthdays, board, previews, sync] = results.map((result) => result.value);
   if (conversation !== selectedConversation || $('#workspace').hidden) return;
   renderBirthdays(birthdays);
   const isPrivate = data.visibility === 'private';
+  renderEventData(board, tasks, birthdays, previews, sync, isPrivate);
+  $('#record-scope').textContent = `${isPrivate ? 'Private chat · only participants' : 'Household chat · shared with your household'} — birthdays and new reminders belong to the selected chat. Upcoming steps include all reminders you can access. Timezone: ${me.timezone}.`;
   $('#chat-heading').textContent = isPrivate ? 'Private chat' : 'Household chat';
   $('#chat-visibility').textContent = isPrivate ? 'Only chat participants' : 'Shared with your household';
   $('#chat-guidance').textContent = isPrivate && !data.ai_available
@@ -214,7 +225,7 @@ async function enter() {
   $('#workspace').hidden = false;
   $('#credential-result').hidden = true;
   $('#new-credentials').value = '';
-  $('#account-panel').hidden = !me.user_id;
+  setView(currentView);
   if (me.user_id) await loadConnections();
   $('#new-private-chat').disabled = !me.user_id;
   await loadConversations(new URLSearchParams(location.search).get('conversation'));
@@ -294,6 +305,7 @@ $('#message-form').onsubmit = async (event) => {
 $('#new-chat').onclick = async () => {
   try {
     const row = await api('/api/conversations', { method: 'POST' });
+    setView('assistant');
     await loadConversations(row.id);
     await refresh();
   } catch (error) { notice(error.message); }
@@ -303,6 +315,7 @@ $('#new-private-chat').onclick = async () => {
     const row = await api('/api/conversations', {
       method: 'POST', body: JSON.stringify({ visibility: 'private' }),
     });
+    setView('assistant');
     await loadConversations(row.id);
     await refresh();
   } catch (error) { notice(error.message); }
@@ -463,31 +476,51 @@ $('#notifications').onclick = async () => {
 };
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => notice('Service worker unavailable. Chat still works.'));
-enter().catch((error) => { signedOut(); if (!error.message.includes('sign in')) notice(error.message); });
+
 
 function resetBirthday() {
   birthdayDraft = null;
+  $('#birthday-feedback').textContent = '';
   $('#birthday-form').reset();
   $('#birthday-form').elements.occasion_date.disabled = false;
+  $('#birthday-form').elements.recipient.readOnly = false;
+  $('#birthday-person-label').hidden = false;
+  $('#birthday-legacy-fields').hidden = true;
 }
 function renderBirthdays(rows) {
-  $('#birthdays').replaceChildren();
-  rows.filter((row) => row.conversation_id === conversation).forEach((row) => {
+  const list = $('#birthdays');
+  const visible = rows.filter((row) => row.conversation_id === conversation);
+  const signature = JSON.stringify(visible);
+  if (list.dataset.signature === signature && list.childNodes.length) return;
+  const expanded = new Set([...list.querySelectorAll('details[open]')].map(item => item.id));
+  list.dataset.signature = signature;
+  list.replaceChildren();
+  if (!visible.length) list.append(textElement('p', 'Birthdays appear here after syncing. You can also add one manually.', 'empty'));
+  visible.forEach((row) => {
     const card = textElement('div', '', 'birthday-card');
+    card.id = 'birthday-' + row.id;
+    card.append(birthdayPlanControl(row));
+    card.querySelector('details').id = 'birthday-plan-' + row.id;
+    card.querySelector('details').open = expanded.has('birthday-plan-' + row.id);
     card.append(textElement('strong', row.recipient),
-      textElement('p', `${row.occasion_date} · ${row.gift_status}`),
+      textElement('p', `${row.occasion_date} · ${row.calendar_id ? 'Google Calendar · ' : 'Manual · '}${row.gift_status}`),
       textElement('p', row.budget === null ? 'Budget not set' : `${row.currency} ${row.budget}`));
+    card.append(card.firstChild);
     const edit = textElement('button', 'Edit', 'quiet');
     edit.onclick = () => {
       birthdayDraft = row;
       const form = $('#birthday-form');
       ['recipient', 'occasion_date', 'preferences', 'budget', 'currency', 'lead_days', 'gift_status'].forEach((key) => { form.elements[key].value = row[key] ?? ''; });
       form.elements.occasion_date.disabled = !!row.calendar_id;
+      form.elements.recipient.readOnly = Boolean(row.calendar_id || row.person_id);
+      $('#birthday-person-label').hidden = true;
+      $('#birthday-legacy-fields').hidden = Boolean(row.plan);
       $('#birthday-editor').open = true;
     };
     const ideas = textElement('button', 'Gift ideas', 'quiet');
     ideas.onclick = () => {
-      $('#message-input').value = `Use the household-gifts specialist to suggest three gifts for birthday ${row.id}. Read the saved preferences and budget first. These are proposals only.`;
+      $('#message-input').value = `Suggest three gifts for birthday ${row.id}. Use the saved ideas and budget from the application. These are proposals only.`;
+      openAssistant();
       $('#message-input').focus();
     };
     card.append(edit, ideas);
@@ -500,17 +533,121 @@ $('#birthday-form').onsubmit = async (event) => {
   const form = event.currentTarget;
   const button = event.submitter;
   button.disabled = true;
-  if (!birthdayDraft) birthdayDraft = { id: crypto.randomUUID(), conversation_id: conversation };
+  $('#birthday-feedback').textContent = 'Saving…';
+  if (!birthdayDraft) birthdayDraft = {id: crypto.randomUUID(), conversation_id: conversation, newRecord: true};
+  const attempt = birthdayDraft;
   const body = { conversation_id: birthdayDraft.conversation_id };
   ['recipient', 'occasion_date', 'preferences', 'currency', 'gift_status'].forEach((key) => { body[key] = form.elements[key].value; });
   body.lead_days = Number(form.elements.lead_days.value);
   body.budget = form.elements.budget.value || null;
   try {
-    await api(`/api/birthdays/${birthdayDraft.id}`, { method: 'PUT', body: JSON.stringify(body) });
+    if (attempt.newRecord) body.person_id = form.elements.person.value || null;
+    const endpoint = attempt.newRecord ? '/api/events/birthdays/' : '/api/birthdays/';
+    await api(endpoint + attempt.id, {method: 'PUT', body: JSON.stringify(body)});
+    if (birthdayDraft !== attempt) return;
     resetBirthday();
     $('#birthday-editor').open = false;
     await refresh();
     notice('Birthday saved.');
-  } catch (error) { notice(error.message); }
+  } catch (error) { $('#birthday-feedback').textContent = `${error.message} Your draft is still here.`; }
   finally { button.disabled = false; }
 };
+
+const viewCopy = {
+  events: ['Remember. Prepare. Enjoy.', 'Room for the good things.', 'Birthdays and the little steps that make them thoughtful.'],
+  assistant: ['A little help when you need it', 'Think it through together.', 'Ask for ideas, untangle a plan, or save a reminder.'],
+  meals: ['Around your table', 'What sounds good?', 'Meal planning is coming next.'],
+  shopping: ['Ready for the week', 'One less forgotten thing.', 'A shared shopping list is coming next.'],
+  stock: ['Know what’s on hand', 'A little more prepared.', 'Stock and supplies are coming next.'],
+  settings: ['Your household, your way', 'Make yourself at home.', 'Your account, connections and notifications.'],
+};
+let currentView = 'events';
+let assistantOpen = false;
+function openAssistant() {
+  if (currentView !== 'events') setView('assistant');
+  else { assistantOpen = true; setView('events'); }
+  $('#message-input').focus();
+}
+function setView(view, focus = false) {
+  if (!viewCopy[view]) view = 'events';
+  currentView = view;
+  if (conversation) history.replaceState(null, '', `/?conversation=${encodeURIComponent(conversation)}&view=${view}`);
+  const [eyebrow, title, description] = viewCopy[view];
+  $('#view-eyebrow').textContent = eyebrow;
+  $('#view-title').textContent = title;
+  $('#view-description').textContent = description;
+  document.querySelectorAll('[data-view]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.view === view);
+    if (button.dataset.view === view) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  $('#events-workspace').hidden = view !== 'events';
+  $('#events-panel').hidden = view !== 'events';
+  $('#view-grid').classList.toggle('events-with-assistant', view === 'events' && assistantOpen);
+  $('#assistant-toggle').hidden = view !== 'events';
+  $('#assistant-toggle').setAttribute('aria-expanded', String(view === 'events' && assistantOpen));
+  $('#upcoming-panel').hidden = view !== 'events';
+  $('#assistant-panel').hidden = view !== 'assistant' && !(view === 'events' && assistantOpen);
+  $('#notification-panel').hidden = view !== 'settings';
+  $('#account-panel').hidden = view !== 'settings' || !me?.user_id;
+  $('#setup-panel').hidden = view !== 'settings';
+  const future = ['meals', 'shopping', 'stock'].includes(view);
+  $('#future-panel').hidden = !future;
+  $('#view-grid').hidden = future;
+  $('#record-scope').hidden = !['events', 'assistant'].includes(view);
+  if (future) {
+    $('#future-heading').textContent = title;
+    $('#future-description').textContent = {
+      meals: 'Favourite meals, dietary needs and cooking time will help shape useful plans. Usual staples will stay separate from confirmed stock.',
+      shopping: 'Add and complete items directly, with the assistant helping you work out what you need.',
+      stock: 'Record what you have and when you checked it. Remembered staples alone will never count as current stock.',
+    }[view];
+  }
+  if (focus) $('#view-title').focus();
+}
+document.querySelectorAll('[data-view]').forEach((button) => {
+  button.onclick = () => {
+    if (button.dataset.view === 'assistant' && currentView === 'events') openAssistant();
+    else setView(button.dataset.view, true);
+  };
+});
+$('#assistant-toggle').onclick = () => {
+  if (assistantOpen) { assistantOpen = false; setView('events'); }
+  else openAssistant();
+};
+$('#assistant-close').onclick = () => {
+  assistantOpen = false;
+  setView('events');
+  $('#assistant-toggle').focus();
+};
+$('#horizon-slot').append($('#upcoming-panel'));
+bindEvents();
+resetBirthday();
+$('#future-assistant').onclick = () => setView('assistant', true);
+setView(new URLSearchParams(location.search).get('view') || (new URLSearchParams(location.search).has('conversation') ? 'assistant' : 'events'));
+$('#reminder-timezone').textContent = `Enter time in your device timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone}). Saved reminders display in your household timezone.`;
+
+let reminderRequest = null;
+$('#reminder-form').onsubmit = async (event) => {
+  event.preventDefault();
+  if (!conversation) return;
+  const form = event.currentTarget;
+  const button = event.submitter;
+  const body = {title: form.elements.title.value.trim(), due_at: new Date(form.elements.due_at.value).toISOString(), conversation_id: conversation};
+  const signature = JSON.stringify(body);
+  if (!reminderRequest || reminderRequest.signature !== signature) {
+    reminderRequest = {signature, body: {...body, request_id: crypto.randomUUID()}};
+  }
+  const attempt = reminderRequest;
+  button.disabled = true;
+  $('#reminder-feedback').textContent = 'Saving…';
+  try {
+    await api('/api/reminders', {method: 'POST', body: JSON.stringify(attempt.body)});
+    if (reminderRequest === attempt) { reminderRequest = null; form.reset(); }
+    $('#reminder-feedback').textContent = 'Reminder saved.';
+    await refresh();
+  } catch (error) { $('#reminder-feedback').textContent = `${error.message} Your draft is still here.`; }
+  finally { button.disabled = false; }
+};
+
+enter().catch((error) => { signedOut(); if (!error.message.includes('sign in')) notice(error.message); });

@@ -100,6 +100,7 @@ def main():
                     expect(other.locator("#messages")).not_to_contain_text("Synthetic private")
                     assert not errors, errors
                     # Exercise the actual sign-in and one-time recovery controls.
+                    page.locator("[data-view=settings]").click()
                     page.locator("#account-panel details summary").click()
                     page.locator("#current-code").fill(owner_code)
                     page.get_by_role("button", name="Replace codes and sign out").click()

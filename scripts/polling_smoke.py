@@ -23,7 +23,9 @@ window.fetch = async (path, options = {}) => {
     data = ['a', 'b'].map(id => ({id, created_at: '2026-10-27T00:00:00Z'}));
   } else if (path.endsWith('/complete')) { f.tasks = []; data = {}; }
   else if (path === '/api/logout') data = {};
-  else if (path === '/api/birthdays') data = [];
+  else if (path === '/api/birthdays' || path.endsWith('/previews')) data = [];
+  else if (path.endsWith('/sync')) data = {state:'off',enabled:false};
+  else if (path.startsWith('/api/events/')) data = {people:[],defaults:{},revision:0};
   else if (method === 'POST' && path.endsWith('/messages')) {
     f.posts++;
     f.active = true;
@@ -78,6 +80,8 @@ def main():
         expect(page.locator("#send")).to_be_enabled()
         assert page.evaluate("fixture.reads.length") == 2, page.evaluate("fixture.reads")
 
+        page.locator("[data-view=assistant]").click()
+
         # Idle tabs should not keep the old fast cadence. New reminders appear on idle refresh.
         page.clock.run_for(29999)
         assert page.evaluate("fixture.reads.length") == 2
@@ -123,6 +127,8 @@ def main():
         page.evaluate("fixture.release(); fixture.release = null")
         expect(page.locator("#messages")).to_have_text("Mental LoaderOther conversation")
         assert page.evaluate("fixture.maxInFlight") <= 2  # One messages/tasks pair.
+
+        page.locator("[data-view=events]").click()
 
         # An action during a refresh queues another read instead of losing its update.
         page.evaluate("""() => {

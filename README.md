@@ -39,8 +39,7 @@ runtime provisioning are implemented. The Render pilot uses one dedicated househ
 private chats require separate provisioned runtimes for AI. Existing un-enrolled local
 households can still use their legacy codes; hosted browser login requires a personal account.
 
-The Birthdays & gifts panel supports direct dated-record editing, preparation tasks and gift
-suggestions without requiring chat for routine edits. See [birthday workflow](docs/birthday-workflow.md)
+Events is the default category, with direct dated-birthday editing and reminder creation/completion. Assistant and Settings have dedicated views; Meals, Shopping and Stock are marked as planned. Browser actions and native tools share application operations; routine edits need no model call. See [UI and application boundary](docs/ui-and-application-boundary.md) for the implemented design and contracts. See [birthday workflow](docs/birthday-workflow.md)
 and [account foundations](docs/phase-2-accounts.md).
 
 ## Hobby hosting

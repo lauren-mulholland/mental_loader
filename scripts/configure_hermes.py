@@ -69,6 +69,13 @@ def main():
         for toolset in native:
             if toolset not in enabled:
                 enabled.append(toolset)
+    config.setdefault("mcp_servers", {})["mental_loader"] = {
+        "url": "${ML_BACKEND_URL}/mcp",
+        "headers": {"Authorization": "Bearer ${ML_HOUSEHOLD_ACCESS_CODE}"},
+    }
+    for platform in ("cli", "api_server"):
+        if "mcp-mental_loader" not in platforms[platform]:
+            platforms[platform].append("mcp-mental_loader")
     memory = config.setdefault("memory", {})
     memory["memory_enabled"] = True
     memory["user_profile_enabled"] = True

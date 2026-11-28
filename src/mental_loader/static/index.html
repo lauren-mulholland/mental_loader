@@ -10,6 +10,7 @@
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/events.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -42,26 +43,137 @@
   <div id="workspace" class="workspace" hidden>
     <aside class="sidebar">
       <a class="wordmark" href="/">m. <span>mental loader</span></a>
-      <p class="eyebrow">Your space</p>
+      <nav id="category-nav" aria-label="Household sections">
+        <button type="button" data-view="events" class="active" aria-current="page"><span aria-hidden="true">◷</span> Events</button>
+        <button type="button" data-view="meals"><span aria-hidden="true">♧</span> Meals <small>Next</small></button>
+        <button type="button" data-view="shopping"><span aria-hidden="true">▤</span> Shopping <small>Next</small></button>
+        <button type="button" data-view="stock"><span aria-hidden="true">▦</span> Stock &amp; supplies <small>Next</small></button>
+        <button type="button" data-view="assistant"><span aria-hidden="true">✧</span> Assistant</button>
+        <button type="button" data-view="settings"><span aria-hidden="true">⚙</span> Settings</button>
+      </nav>
+      <p class="eyebrow">Your household</p>
       <h2 id="household-name">Household</h2>
       <p class="sidebar-note">Make room for everything else.</p>
       <div class="section-label"><span>Conversations</span><button id="new-chat" class="quiet" aria-label="New conversation">+</button></div>
       <button id="new-private-chat" class="quiet" disabled>＋ New private chat</button>
       <nav id="conversations" aria-label="Saved conversations"></nav>
       <div class="sidebar-bottom">
-        <span class="pill">Local prototype</span>
+        <span class="pill">A little less to carry</span>
         <button id="logout" class="quiet">Sign out</button>
       </div>
     </aside>
 
     <main>
       <header class="page-header">
-        <div><p class="eyebrow">One thing at a time</p><h1>A little headspace.</h1></div>
-        <span id="ai-badge" class="pill">AI off · No model spend</span>
+        <div><p class="eyebrow" id="view-eyebrow">Remember. Prepare. Enjoy.</p><h1 id="view-title" tabindex="-1">Room for the good things.</h1></div>
+        <div class="header-actions"><span id="ai-badge" class="pill">Assistant off</span>
+          <button type="button" id="assistant-toggle" class="secondary" aria-controls="assistant-panel"
+            aria-expanded="false">✧ Assistant</button></div>
       </header>
-      <div class="main-grid">
-        <section class="chat-panel" aria-labelledby="chat-heading">
-          <div class="panel-heading"><div><span class="status-dot"></span><h2 id="chat-heading">Household chat</h2></div><span id="chat-visibility" class="muted">Shared with your household</span></div>
+      <p id="view-description" class="view-description">Birthdays and the little steps that make them thoughtful.</p>
+      <p id="record-scope" class="scope-note"></p>
+      <section id="future-panel" class="future-panel" hidden aria-labelledby="future-heading">
+        <span class="welcome-symbol" aria-hidden="true">♧</span><p class="eyebrow">Still taking shape</p>
+        <h2 id="future-heading"></h2><p id="future-description"></p>
+        <p class="fine">This category has no saved records yet. Direct editing and setup will arrive together.</p>
+        <button type="button" id="future-assistant" class="secondary">Talk it through with the assistant</button>
+        <p class="fine">Suggestions in chat stay suggestions; they do not create plans, shopping items or stock.</p>
+      </section>
+      <div class="main-grid" id="view-grid">
+        <div id="events-workspace">
+        <section id="events-panel" class="task-panel" aria-labelledby="birthday-heading">
+            <div class="panel-heading"><h2 id="birthday-heading">Events calendar</h2></div>
+            <div class="calendar-source">
+              <div><strong>Birthdays from Google Calendar</strong><p id="birthday-sync-status" class="fine" role="status"></p></div>
+              <button type="button" id="birthday-sync-toggle" class="quiet" hidden>Choose birthdays</button>
+              <button type="button" id="birthday-sync-now" class="quiet" hidden>Resync now</button>
+            </div>
+            <section id="birthday-sync-picker" class="record-detail" hidden aria-labelledby="birthday-sync-heading">
+              <h3 id="birthday-sync-heading">Choose whose birthdays to sync</h3>
+              <p class="fine">Only selected birthdays are shared with this chat and get reminders. New people stay unchecked.</p>
+              <div class="events-actions">
+                <button type="button" id="birthday-select-all" class="quiet">Select all</button>
+                <button type="button" id="birthday-deselect-all" class="quiet">Deselect all</button>
+                <p id="birthday-selection-count" class="fine" role="status"></p>
+              </div>
+              <fieldset id="birthday-sync-people" class="sync-people">
+                <legend class="sr-only">People in Google Calendar</legend>
+              </fieldset>
+              <p id="birthday-selection-error" class="fine" role="status"></p>
+              <div class="events-actions">
+                <button type="button" id="birthday-save-selection" class="secondary">Save selection and resync</button>
+                <button type="button" id="birthday-close-picker" class="quiet">Cancel</button>
+                <button type="button" id="birthday-pause-sync" class="quiet" hidden>Pause weekly sync</button>
+              </div>
+            </section>
+            <div class="calendar-controls">
+              <button type="button" id="calendar-prev" class="quiet" aria-label="Previous month">←</button>
+              <h3 id="calendar-month"></h3>
+              <button type="button" id="calendar-next" class="quiet" aria-label="Next month">→</button>
+              <button type="button" id="calendar-view" class="quiet">Agenda</button>
+            </div>
+            <div id="calendar-grid" aria-label="Birthdays and preparation by date"></div>
+            <div id="calendar-day" class="calendar-day" aria-live="polite"></div>
+            <div class="events-actions">
+              <button type="button" id="people-setup" class="secondary">People &amp; defaults</button>
+              <button type="button" id="gift-idea-open" class="secondary">Save a gift idea</button>
+            </div>
+            <section id="people-panel" class="record-detail" hidden aria-labelledby="people-heading">
+              <h3 id="people-heading">Your usual birthday plan</h3>
+              <p id="people-step-copy" class="fine"></p>
+              <form id="people-form" class="record-form">
+                <div id="people-fields"></div>
+                <label id="people-update-label" hidden><input type="checkbox" name="upcoming" checked>
+                  Also update upcoming birthdays that still use defaults</label>
+                <div class="events-actions">
+                  <button type="button" id="people-back" class="quiet" hidden>Back</button>
+                  <button type="submit" id="people-next">Personalise by person →</button>
+                  <button type="button" id="people-close" class="quiet">Finish later</button>
+                </div>
+              </form>
+            </section>
+            <section id="gift-idea-panel" class="record-detail" hidden aria-labelledby="gift-idea-heading">
+              <h3 id="gift-idea-heading">Gift ideas</h3>
+              <form id="gift-idea-form" class="record-form">
+                <label>Person<select name="person"></select></label>
+                <label id="new-idea-name" hidden>Name<input name="name" maxlength="100"></label>
+                <label>Idea<textarea name="idea" maxlength="500" required></textarea></label>
+                <button type="submit">Save idea</button>
+              </form>
+              <div id="saved-ideas"></div>
+            </section>
+            <details id="bulk-editor"><summary>Change gift settings for several people</summary>
+              <form id="bulk-form" class="record-form">
+                <label>Gift budget for everyone in this chat (AUD)<input type="number" name="budget" min="0" max="100000"></label>
+                <label>Birthday cards<select name="cards"><option value="">Keep as set</option><option value="yes">Include cards</option><option value="no">Skip cards</option></select></label>
+                <label>Apply to<select name="scope"><option value="defaults">Usual defaults</option><option value="occasions">Upcoming birthdays</option><option value="both">Defaults and upcoming birthdays</option></select></label>
+                <button type="submit">Preview changes</button>
+              </form>
+            </details>
+            <h3>Birthdays &amp; gifts</h3>
+            <div id="birthdays"></div>
+            <details id="birthday-editor"><summary>Add a birthday manually</summary>
+              <form id="birthday-form" class="birthday-form record-form">
+                <label id="birthday-person-label" hidden>Use an existing person<select name="person"></select></label>
+                <label>Recipient<input name="recipient" required maxlength="100"></label>
+                <label>Occasion date<input name="occasion_date" type="date" required></label>
+                <label>Notes for this occasion<textarea name="preferences" maxlength="1000"></textarea></label>
+                <div id="birthday-legacy-fields">
+                <label>Budget<input name="budget" type="number" min="0" max="1000000" step="0.01"></label>
+                <label>Currency<input name="currency" value="AUD" required pattern="[A-Z]{3}" maxlength="3"></label>
+                <label>Prepare days before<input name="lead_days" type="number" min="0" max="365" value="14" required></label>
+                </div>
+                <label>Progress<select name="gift_status"><option value="planning">Planning</option><option value="purchased">Purchased</option><option value="ready">Ready</option><option value="cancelled">Cancelled</option></select></label>
+                <button type="submit">Save birthday</button><p id="birthday-feedback" class="fine" role="status"></p>
+                <button type="button" id="birthday-new" class="quiet">New birthday</button>
+                <p class="fine">Reminder at 9am in your household timezone. Ready finishes gift preparation. Each record is one dated occasion.</p>
+              </form>
+            </details>
+          </section>
+          <div id="horizon-slot"></div>
+        </div>
+        <section id="assistant-panel" class="chat-panel" hidden aria-labelledby="chat-heading">
+          <div class="panel-heading"><div><span class="status-dot"></span><h2 id="chat-heading">Household chat</h2></div><span id="chat-visibility" class="muted">Shared with your household</span><button id="assistant-close" type="button" class="quiet" aria-label="Close assistant">×</button></div>
           <details id="participants-panel" hidden>
             <summary>Manage participants</summary>
             <p class="fine">Adding someone gives them access to this chat’s saved messages and reminders.</p>
@@ -73,6 +185,12 @@
             </form>
           </details>
           <div id="messages" class="messages" role="log" aria-live="polite"></div>
+          <aside id="assistant-calendar-review" class="assistant-previews" hidden>
+            <p id="assistant-calendar-copy" class="fine" role="status"></p>
+            <button id="assistant-calendar-open" type="button" class="secondary">Review new birthdays</button>
+          </aside>
+          <div id="assistant-receipt" class="assistant-previews" role="status"></div>
+          <div id="assistant-previews" class="assistant-previews" aria-label="Changes to review"></div>
           <p id="run-status" class="run-status" role="status"></p>
           <div class="suggestion-row">
             <button id="try-reminder" class="chip">＋ Try a 1-minute reminder</button>
@@ -86,37 +204,29 @@
           <p id="chat-guidance" class="fine composer-note">/remind works in code without credits. Natural chat uses Hermes when enabled.</p>
         </section>
 
-        <aside class="right-column">
-          <section class="task-panel" aria-labelledby="upcoming-heading">
+
+          <section id="upcoming-panel" class="task-panel" aria-labelledby="upcoming-heading">
             <div class="panel-heading"><h2 id="upcoming-heading">On your horizon</h2><span id="task-count" class="count">0</span></div>
             <p class="muted">Small next steps, all in one place.</p>
             <div id="tasks"></div>
-          </section>
-<section class="task-panel" aria-labelledby="birthday-heading">
-            <h2 id="birthday-heading">Birthdays &amp; gifts</h2>
-            <div id="birthdays"></div>
-            <details id="birthday-editor"><summary>Add or edit a birthday</summary>
-              <form id="birthday-form" class="birthday-form">
-                <label>Recipient<input name="recipient" required maxlength="100"></label>
-                <label>Occasion date<input name="occasion_date" type="date" required></label>
-                <label>Interests and preferences<textarea name="preferences" maxlength="1000"></textarea></label>
-                <label>Budget<input name="budget" type="number" min="0" max="1000000" step="0.01"></label>
-                <label>Currency<input name="currency" value="AUD" required pattern="[A-Z]{3}" maxlength="3"></label>
-                <label>Prepare days before<input name="lead_days" type="number" min="0" max="365" value="14" required></label>
-                <label>Progress<select name="gift_status"><option value="planning">Planning</option><option value="purchased">Purchased</option><option value="ready">Ready</option><option value="cancelled">Cancelled</option></select></label>
-                <button type="submit">Save birthday</button>
-                <button type="button" id="birthday-new" class="quiet">New birthday</button>
-                <p class="fine">Reminder at 9am in your household timezone. Ready stops reminders. Each record is one dated occasion.</p>
+            <details id="reminder-editor"><summary>Add a reminder</summary>
+              <form id="reminder-form" class="record-form">
+                <label>What needs doing?<input name="title" required maxlength="240"></label>
+                <label>When<input name="due_at" type="datetime-local" required></label>
+                <p class="fine"><span id="reminder-timezone"></span></p>
+                <button type="submit">Save reminder</button>
+                <p id="reminder-feedback" role="status" class="fine"></p>
               </form>
             </details>
           </section>
-          <section class="notification-card">
+
+          <section id="notification-panel" class="notification-card" hidden>
             <span class="notification-symbol" aria-hidden="true">↗</span>
             <h2>A nudge when you need it.</h2>
             <p>Let reminders find you, even when this page is closed.</p>
             <button id="notifications" class="secondary">Enable notifications</button>
             <p id="push-status" class="fine"></p>
-            <p class="fine">On iPhone: add to Home Screen, open the app there, then enable notifications. Keep the local backend and Hermes gateway running on your awake laptop.</p>
+            <p class="fine">On iPhone: add to Home Screen, open the app there, then enable notifications. Delivery requires your household service to be running.</p>
           </section>
           <section id="account-panel" class="task-panel" hidden>
             <h2>Your account</h2>
@@ -133,8 +243,12 @@
               </form>
             </details>
           </section>
-          <p class="fine">Google Calendar connection is a separate feasibility check. No calendar events are synced yet.</p>
-        </aside>
+          <section id="setup-panel" class="task-panel" hidden>
+            <p class="eyebrow">Your household, your way</p><h2>Setup at your pace.</h2>
+            <p class="muted">Events is ready for birthdays and reminders. Meals, shopping and supplies are next.</p>
+            <p class="fine">Guided category setup, skip/resume and editable answers are planned. No setup answers are being collected yet.</p>
+            <p class="fine">Calendar access is read-only. Events are not automatically synced.</p>
+          </section>
       </div>
     </main>
   </div>

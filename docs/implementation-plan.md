@@ -25,6 +25,10 @@ The workspace subscription/cap mismatch and hosted phone-delivery check remain s
 operational follow-ups; see the handover. Do not change subscriptions or push to GitHub
 without authorization. This planning update does not implement the UI or boundary refactor.
 
+## UI/boundary slice implemented locally — 27 November 2026
+
+The first Events slice is implemented: category navigation, direct birthday/reminder forms, separate Assistant/Settings, and shared `HouseholdOperations` behind browser/tool endpoints. Meals, Shopping and Stock are explicitly planned screens. Preference ownership and future proposal acceptance are specified in [UI and application boundary](ui-and-application-boundary.md). Full onboarding, broader category CRUD and production release remain follow-ups. The ordered brief above is retained as the starting context; inspect the implementation before repeating its audit/refactor work.
+
 ## Hosting update — 26 November 2026
 
 Railway is now the default host, superseding the Render choice below. Target US$5–10/month

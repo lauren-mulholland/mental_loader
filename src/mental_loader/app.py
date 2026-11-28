@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -16,17 +16,30 @@ from sqlalchemy.exc import IntegrityError
 
 from mental_loader.accounts import Principal, enrolled, remove_member, rotate_credentials
 from mental_loader.agents import build_agent
-from mental_loader.birthdays import BirthdayInput, birthday_dict, save_birthday
+from mental_loader.application import ApplicationError, HouseholdOperations, ReminderInput
+from mental_loader.birthday_sync import BirthdaySync, SyncInput
+from mental_loader.birthdays import BirthdayInput
 from mental_loader.config import Settings
+from mental_loader.mcp_interface import dispatch as dispatch_mcp
 from mental_loader.permissions import visible_conversations
+from mental_loader.planning import (
+    ApplyInput,
+    BirthdayPlan,
+    BulkInput,
+    IdeaInput,
+    ManualBirthdayInput,
+    PeopleInput,
+    PersonInput,
+    PreviewInput,
+    RemoveIdeaInput,
+    Scope,
+)
 from mental_loader.push import validate_endpoint
 from mental_loader.security import BodyLimit, rate_limit, validate_hosted
 from mental_loader.storage import (
     AIUsage,
-    Birthday,
     Conversation,
     ConversationParticipant,
-    Delivery,
     Household,
     IntegrationConnection,
     LoginSession,
@@ -35,14 +48,12 @@ from mental_loader.storage import (
     PushSubscription,
     Run,
     RuntimeBinding,
-    Task,
     User,
     database,
     digest,
     now,
 )
 from mental_loader.worker import (
-    complete_task,
     deliver_pending,
     enqueue_due,
     process_run,
@@ -77,14 +88,6 @@ class ConversationInput(BaseModel):
 class ParticipantInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: UUID
-
-
-class ToolReminderInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    title: str = Field(min_length=1, max_length=240)
-    due_at: str = Field(min_length=10, max_length=50)
-    request_id: UUID
-    conversation_id: UUID | None = None
 
 
 class SubscriptionInput(BaseModel):
@@ -124,6 +127,8 @@ def create_app(settings=None, start_worker=True):
     validate_hosted(settings)
     engine, sessions = database(settings.database_url)
     agent = build_agent(sessions, settings)
+    operations = HouseholdOperations(sessions)
+    planning = BirthdaySync(sessions, settings)
 
     async def worker():
         while True:
@@ -166,7 +171,7 @@ def create_app(settings=None, start_worker=True):
     async def headers(request, call_next):
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             # Required on every browser mutation, including login/logout.
-            tool_request = request.url.path.startswith("/api/tool/")
+            tool_request = request.url.path.startswith("/api/tool/") or request.url.path == "/mcp"
             if not tool_request and request.headers.get("origin") != settings.public_origin.rstrip(
                 "/"
             ):
@@ -187,9 +192,13 @@ def create_app(settings=None, start_worker=True):
             "connect-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
             "form-action 'self'"
         )
-        if request.url.path.startswith("/api/"):
+        if request.url.path.startswith("/api/") or request.url.path == "/mcp":
             response.headers["Cache-Control"] = "no-store"
         return response
+
+    @app.exception_handler(ApplicationError)
+    async def application_error(request, error):
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
     @app.exception_handler(IntegrityError)
     async def integrity_conflict(request, error):
@@ -278,11 +287,6 @@ def create_app(settings=None, start_worker=True):
                 raise HTTPException(401, "Invalid household tool credential")
             return Principal(tenant, None, "legacy-tool")
 
-    def tool_conversation(db, tenant, conversation_id):
-        if tenant.conversation_id and tenant.conversation_id != conversation_id:
-            raise HTTPException(404, "Conversation not found")
-        return conversation_for(db, tenant.id, conversation_id, tenant.user_id)
-
     @app.get("/api/tool/clock")
     def tool_clock(tenant=Depends(tool_household)):
         return {"utc": now().isoformat(), "timezone": tenant.timezone}
@@ -293,86 +297,28 @@ def create_app(settings=None, start_worker=True):
         # it is not a second scheduler and cannot dispatch another household's records.
         if tenant.conversation_id:
             raise HTTPException(403, "Private runtimes cannot dispatch household jobs")
-        enqueue_due(sessions, household_id=tenant.id, allow_legacy=not settings.hosted_mode)
+        enqueue_due(
+            sessions,
+            household_id=tenant.id,
+            allow_legacy=not settings.hosted_mode,
+            suggest_gifts=settings.ai_enabled,
+        )
         if settings.vapid_public_key:
             deliver_pending(sessions, settings, household_id=tenant.id)
+        due_scope = planning.due(tenant.id)
+        if due_scope:
+            planning.run(tenant, Scope(conversation_id=due_scope))
         return {"ok": True}
 
     @app.get("/api/tool/tasks")
     def tool_tasks(tenant=Depends(tool_household)):
-        return tasks(tenant)
+        return operations.tasks(tenant)
 
     @app.post("/api/tool/reminders")
-    def tool_remind(body: ToolReminderInput, tenant=Depends(tool_household)):
-        from mental_loader.domain import create_reminder
+    def tool_remind(body: ReminderInput, tenant=Depends(tool_household)):
+        return operations.remind(tenant, body)
 
-        command = f"/remind {body.due_at} {body.title}"
-        try:
-            with sessions.begin() as db:
-                existing = db.scalar(
-                    select(Run).where(
-                        Run.household_id == tenant.id, Run.request_id == str(body.request_id)
-                    )
-                )
-                if existing:
-                    tool_conversation(db, tenant, existing.conversation_id)
-                    if existing.input != command:
-                        raise HTTPException(409, "Request ID already used with different input")
-                    task = db.scalar(select(Task).where(Task.run_id == existing.id))
-                    if task is None:
-                        raise HTTPException(409, "Request already exists without a completed task")
-                    return {
-                        "task_id": task.id,
-                        "conversation_id": task.conversation_id,
-                        "title": task.title,
-                        "due_at": as_utc(task.due_at).isoformat(),
-                    }
-                selected = (
-                    str(body.conversation_id) if body.conversation_id else tenant.conversation_id
-                )
-                if selected:
-                    conversation_id = selected
-                    tool_conversation(db, tenant, conversation_id)
-                else:
-                    row = Conversation(household_id=tenant.id)
-                    db.add(row)
-                    db.flush()
-                    conversation_id = row.id
-                run = Run(
-                    household_id=tenant.id,
-                    conversation_id=conversation_id,
-                    request_id=str(body.request_id),
-                    input=command,
-                    status="completed",
-                    requested_by=tenant.user_id,
-                )
-                db.add(run)
-                db.flush()
-                try:
-                    task = create_reminder(db, run, tenant.timezone, now())
-                except ValueError as error:
-                    raise HTTPException(422, str(error)) from error
-                run.result = f"Hermes saved a reminder: {task.title}."
-                db.add(
-                    Message(
-                        household_id=tenant.id,
-                        conversation_id=conversation_id,
-                        run_id=run.id,
-                        role="assistant",
-                        content=run.result,
-                    )
-                )
-                return {
-                    "task_id": task.id,
-                    "conversation_id": conversation_id,
-                    "title": task.title,
-                    "due_at": task.due_at.isoformat(),
-                }
-        except IntegrityError as error:
-            raise HTTPException(409, "Concurrent request; retry the same request ID") from error
-
-
-    def birthday_tenant(request):
+    def action_principal(request):
         if request.url.path.startswith("/api/tool/"):
             return tool_household(request)
         return household(request)
@@ -380,37 +326,86 @@ def create_app(settings=None, start_worker=True):
     @app.get("/api/birthdays")
     @app.get("/api/tool/birthdays")
     def birthday_list(request: Request):
-        tenant = birthday_tenant(request)
-        with sessions() as db:
-            visible = select(Conversation.id).where(
-                visible_conversations(tenant.id, tenant.user_id)
-            )
-            query = select(Birthday).where(
-                Birthday.household_id == tenant.id, Birthday.conversation_id.in_(visible)
-            )
-            if tenant.conversation_id:
-                query = query.where(Birthday.conversation_id == tenant.conversation_id)
-            return [birthday_dict(row) for row in db.scalars(
-                query.order_by(Birthday.occasion_date, Birthday.id)
-            )]
+        tenant = action_principal(request)
+        return operations.birthdays(tenant)
 
     @app.put("/api/birthdays/{birthday_id}")
     @app.put("/api/tool/birthdays/{birthday_id}")
     def birthday_save(birthday_id: UUID, body: BirthdayInput, request: Request):
-        tenant = birthday_tenant(request)
-        try:
-            with sessions.begin() as db:
-                tool_conversation(db, tenant, body.conversation_id)
-                previous = db.get(Birthday, str(birthday_id))
-                if previous:
-                    tool_conversation(db, tenant, previous.conversation_id)
-                return birthday_dict(save_birthday(db, tenant, str(birthday_id), body))
-        except LookupError as error:
-            raise HTTPException(404, str(error)) from error
-        except ValueError as error:
-            raise HTTPException(422, str(error)) from error
-        except IntegrityError as error:
-            raise HTTPException(409, "Concurrent update; refresh before retrying") from error
+        return operations.save_birthday(action_principal(request), str(birthday_id), body)
+
+    @app.api_route("/mcp", methods=["POST", "GET", "DELETE"])
+    def application_mcp(
+        request: Request, payload: object = Body(default=None), tenant=Depends(tool_household)
+    ):
+        origin = request.headers.get("origin")
+        if origin and origin != settings.public_origin.rstrip("/"):
+            raise HTTPException(403, "Origin not allowed")
+        if request.method != "POST":
+            return Response(status_code=405, headers={"Allow": "POST"})
+        return dispatch_mcp(payload, tenant, planning)
+
+    @app.get("/api/events/{conversation_id}")
+    def event_board(conversation_id: UUID, tenant=Depends(household)):
+        return planning.read(tenant, Scope(conversation_id=conversation_id))
+
+    @app.put("/api/events/birthdays/{birthday_id}")
+    def add_event_birthday(birthday_id: UUID, body: ManualBirthdayInput, tenant=Depends(household)):
+        return planning.add_birthday(tenant, str(birthday_id), body)
+
+    @app.put("/api/events/birthday-plan")
+    def edit_birthday_plan(body: BirthdayPlan, tenant=Depends(household)):
+        return planning.edit_plan(tenant, body)
+
+    @app.post("/api/events/people")
+    def add_event_person(body: PersonInput, tenant=Depends(household)):
+        return planning.add_person(tenant, body)
+
+    @app.delete("/api/events/gift-ideas")
+    def remove_gift_idea(body: RemoveIdeaInput, tenant=Depends(household)):
+        return planning.remove_idea(tenant, body)
+
+    @app.put("/api/events/people")
+    def change_people(body: PeopleInput, tenant=Depends(household)):
+        return planning.update_people(tenant, body)
+
+    @app.post("/api/events/gift-ideas")
+    def add_gift_idea(body: IdeaInput, tenant=Depends(household)):
+        return planning.save_idea(tenant, body)
+
+    @app.get("/api/events/{conversation_id}/previews")
+    def list_gift_previews(conversation_id: UUID, tenant=Depends(household)):
+        return planning.previews(tenant, Scope(conversation_id=conversation_id))
+
+    @app.post("/api/events/preview")
+    def preview_gift_edit(body: BulkInput, tenant=Depends(household)):
+        return planning.preview(tenant, body)
+
+    @app.post("/api/events/apply")
+    def apply_gift_edit(body: ApplyInput, tenant=Depends(household)):
+        return planning.apply(tenant, body)
+
+    @app.post("/api/events/undo")
+    def undo_gift_edit(body: PreviewInput, tenant=Depends(household)):
+        return planning.undo(tenant, body)
+
+    @app.get("/api/events/{conversation_id}/sync")
+    def calendar_sync_status(conversation_id: UUID, tenant=Depends(household)):
+        return planning.status(tenant, Scope(conversation_id=conversation_id))
+
+    @app.post("/api/events/sync/people")
+    def discover_calendar_birthdays(body: Scope, tenant=Depends(personal)):
+        quota(f"birthday-review:{tenant.user_id}", 6, 300)
+        return planning.discover(tenant, body)
+
+    @app.put("/api/events/sync")
+    def configure_calendar_sync(body: SyncInput, tenant=Depends(personal)):
+        return planning.configure(tenant, body)
+
+    @app.post("/api/events/sync")
+    def refresh_birthdays(body: Scope, tenant=Depends(personal)):
+        quota(f"birthday-sync:{tenant.user_id}", 4, 300)
+        return planning.run(tenant, body, force=True)
 
     @app.get("/health")
     def health():
@@ -911,45 +906,16 @@ def create_app(settings=None, start_worker=True):
 
     @app.get("/api/tasks")
     def tasks(tenant=Depends(household)):
-        with sessions() as db:
-            query = (
-                select(Task)
-                .join(Conversation, Task.conversation_id == Conversation.id)
-                .where(
-                    Task.household_id == tenant.id,
-                    visible_conversations(tenant.id, getattr(tenant, "user_id", None)),
-                )
-                .order_by(Task.due_at)
-            )
-            if tenant.conversation_id:
-                query = query.where(Task.conversation_id == tenant.conversation_id)
-            rows = db.scalars(query)
-            deliveries = db.scalars(select(Delivery).where(Delivery.household_id == tenant.id))
-            statuses = {}
-            for delivery in deliveries:
-                statuses.setdefault(delivery.task_id, []).append(delivery.status)
-            return [
-                {
-                    "id": r.id,
-                    "title": r.title,
-                    "due_at": as_utc(r.due_at),
-                    "status": r.status,
-                    "push_status": statuses.get(r.id, []),
-                    "notified_at": r.notified_at,
-                }
-                for r in rows
-            ]
+        return operations.tasks(tenant)
 
     @app.post("/api/tasks/{task_id}/complete")
-    def complete(task_id: str, tenant=Depends(household)):
-        with sessions.begin() as db:
-            task = db.scalar(select(Task).where(Task.id == task_id, Task.household_id == tenant.id))
-            if task is None:
-                raise HTTPException(404, "Task not found")
-            conversation_for(db, tenant.id, task.conversation_id, tenant.user_id)
-            if not complete_task(db, tenant.id, task_id):
-                raise HTTPException(404, "Task not found")
-        return {"ok": True}
+    @app.post("/api/tool/tasks/{task_id}/complete")
+    def complete(task_id: UUID, request: Request):
+        return operations.complete_task(action_principal(request), str(task_id))
+
+    @app.post("/api/reminders")
+    def remind(body: ReminderInput, tenant=Depends(household)):
+        return operations.remind(tenant, body)
 
     @app.post("/api/push-subscriptions")
     def subscribe(body: SubscriptionInput, request: Request, tenant=Depends(household)):
